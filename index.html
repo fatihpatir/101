@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Okey 101">
+    <meta name="theme-color" content="#1a4d2e">
+    <title>101 Okey Premium</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Permanent+Marker&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div id="game-container">
+        <!-- Üst Menü / Navbar (Artık Oyun Konteynırı İçinde) -->
+        <header class="top-nav">
+            <div class="logo">OKEY 101 <span class="pro-badge">PRO</span></div>
+            <div class="nav-actions">
+                <button class="nav-btn" id="new-game-top">YENİ OYUN</button>
+                <button class="nav-btn" id="show-yazboz">YAZ-BOZ</button>
+                <button class="nav-btn" id="open-settings">AYARLAR</button>
+            </div>
+        </header>
+
+        <div class="table">
+            <!-- Atılan Taş Alanları (Boşluklar) -->
+            <div class="discard-zone bottom-right" id="discard-user"></div>
+            <div class="discard-zone top-right" id="discard-bot-3"></div>
+            <div class="discard-zone top-left" id="discard-bot-2"></div>
+            <div class="discard-zone bottom-left" id="discard-bot-1"></div>
+
+            <!-- Bot-2 (Karşı) -->
+            <div class="player-slot top" id="bot-2">
+                <div class="bot-rack bot-rack-top">
+                    <div class="name-tag">Deniz</div>
+                </div>
+            </div>
+
+            <!-- Bot-1 (Sol) -->
+            <div class="player-slot left" id="bot-1">
+                <div class="bot-rack bot-rack-left">
+                    <div class="name-tag">Samet</div>
+                </div>
+            </div>
+
+            <!-- Bot-3 (Sağ) -->
+            <div class="player-slot right" id="bot-3">
+                <div class="bot-rack bot-rack-right">
+                    <div class="name-tag">Sinem</div>
+                </div>
+            </div>
+
+            <!-- Orta Alan: Bölünmüş Oyun Alanı -->
+            <div class="center-grid-container">
+                <!-- Seri Açma Alanı (%70) -->
+                <div class="play-section" id="series-section">
+                    <div class="section-label">SERİLER</div>
+                    <div class="field-area" id="series-field">
+                        <!-- Seriler buraya tık tık dizilecek -->
+                    </div>
+
+                    <!-- Deste ve Gösterge Bölümü (Sadece Seri Alanının Sağ Altında) -->
+                    <div class="center-deck-area">
+                        <div class="deck-pile" id="deck-pile">
+                            <div class="deck-count">20</div>
+                        </div>
+                        <div class="indicator-tile" id="indicator-tile">
+                            <!-- Gösterge taşı buraya gelecek -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ayırıcı Çizgi -->
+                <div class="section-divider"></div>
+
+                <!-- Çift Açma Alanı (%30) -->
+                <div class="play-section" id="pairs-section">
+                    <div class="section-label">ÇİFTLER</div>
+                    <div class="field-area" id="pairs-field">
+                        <!-- Çiftler buraya dikey dizilecek -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kullanıcı Bölgesi -->
+            <div class="user-bottom" id="player-user">
+                <div class="user-rack-area">
+                    <div class="name-tag user-name">Fatih</div>
+                    <!-- Aksiyon Butonları (Istaka Üstü) -->
+                    <div class="rack-actions">
+                        <button class="action-rect btn-sort">SERİ</button>
+                        <button class="action-rect btn-sort">ÇİFT</button>
+                        <div class="action-divider"></div>
+                        <button class="action-rect btn-open">SERİ AÇ</button>
+                        <button class="action-rect btn-open">ÇİFT AÇ</button>
+                        <button class="action-rect btn-util">İŞLE</button>
+                        <button class="action-rect btn-util">AT</button>
+                        <button class="action-rect btn-util">GERİ AL</button>
+
+                        <!-- El İstatistikleri -->
+                        <div class="hand-stats">
+                            <div class="stat-item"><span class="stat-label">PUAN:</span> <span id="hand-points">0</span>
+                            </div>
+                            <div class="stat-item"><span class="stat-label">ÇİFT:</span> <span id="hand-pairs">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="rack-wrapper">
+                        <div class="rack-grid">
+                            <div class="rack-row" id="row-1"></div>
+                            <div class="rack-row" id="row-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Yaz-Boz (Skor Board) Modal -->
+    <div id="scoreboard-modal" class="modal">
+        <div class="modal-content">
+            <h2 class="scoreboard-title">YAZ-BOZ</h2>
+            <div class="score-container">
+                <table id="score-table">
+                    <thead>
+                        <tr>
+                            <th>OYUNCU</th>
+                            <th>CEZA PUANI</th>
+                        </tr>
+                    </thead>
+                    <tbody id="score-body">
+                        <!-- Puanlar buraya dinamik gelecek -->
+                    </tbody>
+                </table>
+            </div>
+            <button class="restart-btn" id="restart-btn">TEKRAR OYNA</button>
+        </div>
+    </div>
+
+    <!-- Ayarlar Modalı -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content settings-content">
+            <h2 class="scoreboard-title">AYARLAR</h2>
+
+            <div class="settings-group">
+                <h3>OYUNCU İSİMLERİ</h3>
+                <div class="input-row">
+                    <label>Sen:</label>
+                    <input type="text" id="name-user" value="Fatih">
+                </div>
+                <div class="input-row">
+                    <label>Bot 1:</label>
+                    <input type="text" id="name-bot1" value="Bot 1">
+                </div>
+                <div class="input-row">
+                    <label>Bot 2:</label>
+                    <input type="text" id="name-bot2" value="Bot 2">
+                </div>
+                <div class="input-row">
+                    <label>Bot 3:</label>
+                    <input type="text" id="name-bot3" value="Bot 3">
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>OYUN KURALLARI</h3>
+                <div class="input-row">
+                    <label>Toplam El Sayısı:</label>
+                    <input type="number" id="max-rounds" value="11" min="1" max="101">
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>GÖRSEL VE SES</h3>
+                <div class="toggle-row">
+                    <label>Sesleri Kapat:</label>
+                    <input type="checkbox" id="mute-sounds">
+                </div>
+                <div class="input-row">
+                    <label>Masa Teması:</label>
+                    <select id="table-theme">
+                        <option value="classic">Klasik Yeşil</option>
+                        <option value="dark">Koyu Gece</option>
+                        <option value="wood">Ahşap Dokusu</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="restart-btn" id="save-settings">KAYDET VE KAPAT</button>
+
+            <div class="dev-credit">
+                Programcı Fatih PATIR (c) 2025
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
