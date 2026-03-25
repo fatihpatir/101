@@ -1,1016 +1,1296 @@
+/**
+ * 101 Okey Premium - JavaScript Motoru v4.0 (Temiz Mimari)
+ * Tüm hakları Krala aittir.
+ */
+
+// --- OYUN SABİTLERİ VE DURUMU ---
 const COLORS = ['red', 'blue', 'black', 'yellow'];
-let deck = [];
-let players = {
-    user: { hand: [], isOpened: false, openType: null, score: 0, penalty101: 0 },
-    bot1: { hand: [], isOpened: false, openType: null, score: 0, penalty101: 0 },
-    bot2: { hand: [], isOpened: false, openType: null, score: 0, penalty101: 0 },
-    bot3: { hand: [], isOpened: false, openType: null, score: 0, penalty101: 0 }
-};
+const NUMBERS = Array.from({ length: 13 }, (_, i) => i + 1);
 
-let turnOrder = ['user', 'bot3', 'bot2', 'bot1']; // SAAT YÖNÜNÜN TERSİ
-let currentTurnIndex = 0;
-let selectedTileIds = new Set();
-let hasDrawn = false; // Bu el taş çekildi mi?
-let indicatorTile = null;
-let okeyTile = null;
-let openedSeries = [];
-let openedPairs = [];
-let userRackSlots = new Array(40).fill(null); // Sabit 40 yuvalı ıstaka (20+20)
-
-// Oyun Ayarları
-let gameConfig = {
-    names: { user: 'Fatih', bot1: 'Bot 1', bot2: 'Bot 2', bot3: 'Bot 3' },
-    maxRounds: 11,
+let gameState = {
+    deck: [],
+    indicatorTile: null,
+    okeyTile: null,
+    turnOrder: ['user', 'bot3', 'bot2', 'bot1'],
+    currentTurnIndex: 0,
+    hasDrawn: false,
+    players: {
+        user: { name: 'Fatih', hand: [], score: 0, hasOpened: false },
+        bot1: { name: 'Samet', hand: [], score: 0, hasOpened: false },
+        bot2: { name: 'Deniz', hand: [], score: 0, hasOpened: false },
+        bot3: { name: 'Sinem', hand: [], score: 0, hasOpened: false }
+    },
+    userRackSlots: new Array(40).fill(null),
+    selectedTileIds: new Set(),
+    table: { user: [], bots: [] },
+    discards: {},
+    pairsOpened: false,
+    lastDiscard: null,
     currentRound: 1,
-    isMuted: false,
-    theme: 'classic'
+    maxRounds: 5,
+    roundScores: { user: [], bot1: [], bot2: [], bot3: [] }, // Her elin puanı
+    touch: {
+        phantom: null,
+        sourceType: null,
+        draggedTileId: null
+    }
 };
 
+// --- TILE (TAŞ) SINIFI ---
 class Tile {
     constructor(number, color, isJoker = false) {
+        this.id = 'tile-' + Math.random().toString(36).substr(2, 9);
         this.number = number;
         this.color = color;
         this.isJoker = isJoker;
-        this.id = Math.random().toString(36).substr(2, 9);
+        this.isFlipped = false; // Yeni: Taşın arkasının dönük olma durumu
     }
 
-    createHTMLElement(isDisplayOnly = false) {
+    createHTMLElement(isFaceUp = true) {
         const div = document.createElement('div');
-        div.className = `tile ${selectedTileIds.has(this.id) ? 'selected' : ''}`;
-        div.dataset.id = this.id;
+        div.className = `tile ${this.color}`;
+        div.id = this.id;
+        div.draggable = isFaceUp;
 
-        // Sürüklenebilir yapalım (Sıra beklerken de düzenleme için açık)
-        if (!isDisplayOnly) {
-            div.draggable = true;
-            div.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('tileId', this.id);
-                div.classList.add('dragging');
-            });
-            div.addEventListener('dragend', () => {
-                div.classList.remove('dragging');
-            });
+        const isRealOkey = (this.number === gameState.okeyTile?.number && this.color === gameState.okeyTile?.color && !this.isJoker);
+        let numDisplay = this.isJoker ? '★' : (this.number || '?');
+        const colorCode = this.isJoker ? '#ff9800' : this.getColorCode();
 
-            // Üzerine taş bırakıldığında yer değiştirme (Intra-rack move)
-            div.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                div.classList.add('drag-hover');
-            });
-            div.addEventListener('dragleave', () => {
-                div.classList.remove('drag-hover');
-            });
-            div.addEventListener('drop', (e) => {
-                e.preventDefault();
-                div.classList.remove('drag-hover');
-                const draggedId = e.dataTransfer.getData('tileId');
-                if (draggedId && draggedId !== this.id) {
-                    moveTileInRack(draggedId, this.id);
-                }
-            });
-        }
+        div.innerHTML = `
+            <div class="tile-content">
+                <div class="tile-face front">
+                    <span class="tile-number" style="color: ${colorCode}">${numDisplay}</span>
+                </div>
+                <div class="tile-face back"></div>
+            </div>
+        `;
 
-        let displayColor = getColorCode(this.color);
-        let isRealOkey = (this.number === okeyTile.number && this.color === okeyTile.color);
+        if (isFaceUp && !this.isFlipped) div.classList.add('face-up');
+        if (this.isJoker) div.classList.add('is-joker');
+        if (isRealOkey) div.classList.add('is-okey');
 
-        if (this.isJoker || isRealOkey) {
-            div.classList.add('okey-tile');
-            div.innerHTML = `<span style="color: #ff5722">${this.isJoker ? 'J' : this.number}</span><div class="tile-dot" style="background: #ff5722"></div>`;
-        } else {
-            div.innerHTML = `
-                <span class="tile-number" style="color: ${displayColor}">${this.number}</span>
-                <div class="tile-dot" style="background: ${displayColor}"></div>
-            `;
-        }
+        // Seçim takibi
+        if (gameState.selectedTileIds.has(this.id)) div.classList.add('selected');
+ 
+        // Interaktif Olaylar (Hem önü hem arkası açıkken çalışmalı)
+        div.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleTileSelection(this.id);
+        });
 
-        if (!isDisplayOnly) {
-            div.addEventListener('click', (e) => {
-                e.stopPropagation();
-                // Her zaman seçilebilir olsun (Sıra beklerken düzenleme için)
-                toggleTileSelection(this.id);
-            });
-        }
+        // Drag olayları (Sadece yüzü yukarıyken sürükleme daha mantıklı ama kararı sana bırakıyorum)
+        div.addEventListener('dragstart', (e) => {
+            if (!div.classList.contains('face-up')) { e.preventDefault(); return; }
+            e.dataTransfer.setData('tileId', this.id);
+            div.classList.add('dragging');
+        });
+        
+        div.addEventListener('dragend', () => div.classList.remove('dragging'));
 
         return div;
     }
+
+    getColorCode() {
+        const maps = { 'red': '#d32f2f', 'blue': '#1976d2', 'black': '#212121', 'yellow': '#fbc02d' };
+        return maps[this.color] || '#333';
+    }
 }
 
+// --- OYUN BAŞLATMA ---
 function initGame() {
-    deck = createFullDeck();
-    shuffle(deck);
-
-    indicatorTile = deck.pop();
-    determineOkey();
-    renderIndicator();
-
-    // Dağıtıcının sağındaki başlar (22 taş)
-    players.bot3.hand = deck.splice(0, 22);
-    players.user.hand = deck.splice(0, 21);
-    players.bot2.hand = deck.splice(0, 21);
-    players.bot1.hand = deck.splice(0, 21);
-
-    // Kullanıcı taşlarını ıstaka yuvalarına diz
-    userRackSlots.fill(null);
-    players.user.hand.forEach((tile, i) => {
-        userRackSlots[i] = tile;
-    });
-
-    currentTurnIndex = 1; // Bot 3 başlıyor
-
-    renderUserRack();
-    updateDeckCount();
-    updateTurnUI();
-    updatePlayerNamesUI(); // İsimleri ayarlardan çek
-
-    if (turnOrder[currentTurnIndex] !== 'user') {
-        setTimeout(botPlay, 1500);
+    try {
+        logDebug("Sistem Başlatılıyor...");
+        createFullDeck();
+        shuffleDeck();
+        determineOkey();
+        dealTiles();
+        
+        renderAll();
+        logDebug("Oyun Hazır!");
+    } catch (err) {
+        alert("Başlatma Hatası: " + err.message);
     }
-}
-
-// --- Doğrulama ve Açma Kuralları ---
-
-function findValidSets(tiles) {
-    let sets = [];
-    let remaining = [...tiles];
-
-    // Önce Grupları bul (3 veya 4 tane aynı numara farklı renk)
-    let numbers = [...new Set(remaining.map(t => t.number))];
-    numbers.forEach(num => {
-        let sameNum = remaining.filter(t => t.number === num && !t.isJoker);
-        // Renkleri kontrol et (aynı numara olsa bile renkler farklı olmalı)
-        let uniqueColors = new Set(sameNum.map(t => t.color));
-        if (sameNum.length >= 3 && uniqueColors.size === sameNum.length) {
-            sets.push({ tiles: sameNum, sum: sameNum.length * num, type: 'group' });
-            sameNum.forEach(sn => remaining = remaining.filter(r => r.id !== sn.id));
-        }
-    });
-
-    // Sonra Serileri bul (Aynı renk ardışık)
-    COLORS.forEach(color => {
-        let sameColor = remaining.filter(t => t.color === color).sort((a, b) => a.number - b.number);
-        if (sameColor.length < 3) return;
-
-        let tempSeries = [sameColor[0]];
-        for (let i = 1; i < sameColor.length; i++) {
-            if (sameColor[i].number === tempSeries[tempSeries.length - 1].number + 1) {
-                tempSeries.push(sameColor[i]);
-            } else {
-                if (tempSeries.length >= 3) {
-                    sets.push({ tiles: [...tempSeries], sum: tempSeries.reduce((s, t) => s + t.number, 0), type: 'series' });
-                }
-                tempSeries = [sameColor[i]];
-            }
-        }
-        if (tempSeries.length >= 3) {
-            sets.push({ tiles: [...tempSeries], sum: tempSeries.reduce((s, t) => s + t.number, 0), type: 'series' });
-        }
-    });
-
-    return sets;
-}
-
-function handleOpenSeries() {
-    if (turnOrder[currentTurnIndex] !== 'user' || !hasDrawn) {
-        alert("Sıra sizde değil veya henüz taş çekmediniz!");
-        return;
-    }
-
-    // Istakadaki görsel grupları otomatik algıla
-    let groupsOnRack = [];
-    let currentGroup = [];
-    for (let i = 0; i <= 40; i++) {
-        const tile = (i < 40) ? userRackSlots[i] : null;
-        if (tile === null) {
-            if (currentGroup.length >= 3) {
-                let res = validateVisualSet(currentGroup);
-                if (res.valid) groupsOnRack.push({ tiles: [...currentGroup], sum: res.sum });
-            }
-            currentGroup = [];
-        } else {
-            currentGroup.push(tile);
-        }
-    }
-
-    if (groupsOnRack.length === 0) {
-        alert("Istakanızda geçerli bir seri bulunamadı. Önce taşları 'SERİ' butonuyla dizin veya aralarında boşluk bırakarak gruplayın.");
-        return;
-    }
-
-    let totalSum = groupsOnRack.reduce((s, g) => s + g.sum, 0);
-    if (totalSum < 101) {
-        alert("Perlerin toplamı en az 101 yapmadan açamazsınız");
-        return;
-    }
-
-    // AÇILIŞ GERÇEKLEŞİYOR
-    let openedIds = new Set();
-    groupsOnRack.forEach(group => {
-        openedSeries.push({ tiles: group.tiles, owner: 'user' });
-        renderSeriesOnTable(group.tiles);
-        group.tiles.forEach(t => {
-            openedIds.add(t.id);
-            // Istakadan sil
-            let idx = userRackSlots.indexOf(t);
-            if (idx !== -1) userRackSlots[idx] = null;
-        });
-    });
-
-    players.user.hand = players.user.hand.filter(t => !openedIds.has(t.id));
-    players.user.isOpened = true;
-    players.user.openType = 'series'; // Seri açtığını kaydet
-    selectedTileIds.clear();
-    renderUserRack();
-    alert(`Tebrikler! ${totalSum} puanla elinizi açtınız.`);
-}
-
-function handleOpenPairs() {
-    if (turnOrder[currentTurnIndex] !== 'user' || !hasDrawn) {
-        alert("Sıra sizde değil veya taş çekmediniz!");
-        return;
-    }
-
-    // Istakadaki çiftleri otomatik algıla (yan yana aynı iki taş + boşluk kuralı)
-    let pairsOnRack = [];
-    let currentGroup = [];
-    for (let i = 0; i <= 40; i++) {
-        const tile = (i < 40) ? userRackSlots[i] : null;
-        if (tile === null) {
-            if (currentGroup.length === 2) {
-                let t1 = currentGroup[0], t2 = currentGroup[1];
-                if (t1.number === t2.number && t1.color === t2.color && !t1.isJoker) {
-                    pairsOnRack.push([t1, t2]);
-                }
-            }
-            currentGroup = [];
-        } else {
-            currentGroup.push(tile);
-        }
-    }
-
-    if (pairsOnRack.length < 5) {
-        alert("En az 5 çift yapmadan açamazsınız");
-        return;
-    }
-
-    // AÇILIŞ GERÇEKLEŞİYOR
-    let openedIds = new Set();
-    pairsOnRack.forEach(pair => {
-        openedPairs.push({ tiles: pair, owner: 'user' });
-        renderPairsOnTable(pair);
-        pair.forEach(t => {
-            openedIds.add(t.id);
-            let idx = userRackSlots.indexOf(t);
-            if (idx !== -1) userRackSlots[idx] = null;
-        });
-    });
-
-    players.user.hand = players.user.hand.filter(t => !openedIds.has(t.id));
-    players.user.isOpened = true;
-    players.user.openType = 'pairs'; // Çift açtığını kaydet
-    selectedTileIds.clear();
-    renderUserRack();
-    alert("5 Çift ile elinizi açtınız!");
-}
-
-function handleProcess() {
-    if (turnOrder[currentTurnIndex] !== 'user' || !hasDrawn) {
-        alert("Sıra sizde değil veya taş çekmediniz!");
-        return;
-    }
-    if (!players.user.isOpened) {
-        alert("Taş işlemek için önce elinizi açmalısınız!");
-        return;
-    }
-    if (selectedTileIds.size !== 1) {
-        alert("İşlemek için sadece 1 taş seçmelisiniz.");
-        return;
-    }
-
-    const tileId = [...selectedTileIds][0];
-    const tile = players.user.hand.find(t => t.id === tileId);
-    let success = false;
-
-    // 1. Serilere İşleme ve Okey Çalma Kontrolü
-    for (let set of openedSeries) {
-        // Okey Çalma Kontrolü: Eğer sette okey varsa ve bendeki taş o okeyin yerine geçerse
-        let jokerIdx = set.tiles.findIndex(t => t.isJoker || (t.number === okeyTile.number && t.color === okeyTile.color));
-        if (jokerIdx !== -1) {
-            let joker = set.tiles[jokerIdx];
-            // Sahte taşın (okeyin) o anki değerini hesapla (Basit mantık: i-1 veya i+1)
-            let neededNum = (jokerIdx === 0) ? set.tiles[1].number - 1 : set.tiles[0].number + jokerIdx;
-            if (tile.number === neededNum && tile.color === set.tiles[0].color) {
-                // Okey Çalma!
-                alert("Okeyi çaldınız! Karşı tarafa +101 ceza yazıldı.");
-                players[set.owner].penalty101 += 1; // Ceza puanı ekle
-
-                // Taşları değiştir
-                set.tiles[jokerIdx] = tile;
-                replaceTileInHand(tileId, joker); // Okeyi elime al
-                renderSeriesOnTable(); // Masayı yenile
-                success = true;
-                break;
-            }
-        }
-
-        // Normal seri işleme (Başa veya Sona)
-        let first = set.tiles[0], last = set.tiles[set.tiles.length - 1];
-        if (tile.color === first.color) {
-            if (tile.number === first.number - 1 && tile.number >= 1) {
-                set.tiles.unshift(tile);
-                success = true;
-            } else if (tile.number === last.number + 1 && tile.number <= 13) {
-                set.tiles.push(tile);
-                success = true;
-            }
-        } else if (set.type === 'group' && tile.number === first.number) {
-            // Farklı renk aynı numara grubu
-            if (!set.tiles.some(t => t.color === tile.color)) {
-                set.tiles.push(tile);
-                success = true;
-            }
-        }
-        if (success) break;
-    }
-
-    // 2. Çiftlere İşleme
-    if (!success) {
-        for (let pairSet of openedPairs) {
-            if (tile.number === pairSet.tiles[0].number && tile.color === pairSet.tiles[0].color) {
-                pairSet.tiles.push(tile); // Çifte 3. veya 4. taş eklenebilir aslında, bazıları 3. taşa izin verir
-                success = true;
-                break;
-            }
-        }
-    }
-
-    if (success) {
-        // Eğer okey çalmadıysa normal şekilde elden çıkar
-        if (players.user.hand.includes(tile)) {
-            removeTileFromHand(tileId);
-        }
-        selectedTileIds.clear();
-        renderUserRack();
-        renderSeriesOnTable(); // Tüm masayı yeniden çiz
-        renderPairsOnTable();
-    } else {
-        alert("Bu taş hiçbir yere işlenemiyor!");
-    }
-}
-
-function removeTileFromHand(tileId) {
-    players.user.hand = players.user.hand.filter(t => t.id !== tileId);
-    for (let i = 0; i < userRackSlots.length; i++) {
-        if (userRackSlots[i] && userRackSlots[i].id === tileId) userRackSlots[i] = null;
-    }
-}
-
-function replaceTileInHand(oldId, newTile) {
-    let idx = userRackSlots.findIndex(t => t && t.id === oldId);
-    if (idx !== -1) userRackSlots[idx] = newTile;
-    players.user.hand = players.user.hand.filter(t => t.id !== oldId);
-    players.user.hand.push(newTile);
-}
-
-function renderSeriesOnTable() {
-    const field = document.getElementById('series-field');
-    if (!field) return;
-    field.innerHTML = '';
-
-    // Etiketi geri koy
-    const label = document.createElement('div');
-    label.className = 'section-label';
-    label.innerText = 'SERİLER';
-    field.appendChild(label);
-
-    openedSeries.forEach(set => {
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'tile-group';
-        set.tiles.forEach(t => groupDiv.appendChild(t.createHTMLElement(true)));
-        field.appendChild(groupDiv);
-    });
-}
-
-function renderPairsOnTable() {
-    const field = document.getElementById('pairs-field');
-    if (!field) return;
-    field.innerHTML = '';
-
-    const label = document.createElement('div');
-    label.className = 'section-label';
-    label.innerText = 'ÇİFTLER';
-    field.appendChild(label);
-
-    openedPairs.forEach(pairSet => {
-        const pairDiv = document.createElement('div');
-        pairDiv.className = 'pair-group';
-        pairSet.tiles.forEach(t => pairDiv.appendChild(t.createHTMLElement(true)));
-        field.appendChild(pairDiv);
-    });
-}
-
-function determineOkey() {
-    let okeyNum = indicatorTile.number === 13 ? 1 : indicatorTile.number + 1;
-    okeyTile = { number: okeyNum, color: indicatorTile.color };
 }
 
 function createFullDeck() {
-    let newDeck = [];
-    for (let set = 0; set < 2; set++) {
-        COLORS.forEach(color => {
-            for (let num = 1; num <= 13; num++) {
-                newDeck.push(new Tile(num, color));
-            }
+    gameState.deck = [];
+    COLORS.forEach(color => {
+        NUMBERS.forEach(num => {
+            gameState.deck.push(new Tile(num, color), new Tile(num, color));
         });
-    }
-    newDeck.push(new Tile(0, 'any', true));
-    newDeck.push(new Tile(0, 'any', true));
-    return newDeck;
+    });
+    // Sahte Okeyler (Jokers)
+    // 2 Adet Sahte Okey ekle (Okey 101'de Sahte Okey Gösterge Sayısını Alır)
+    // Placeholder values for jokers, actual number will be set after indicator tile is known
+    // 101 Okey'de 2 adet Sahte Okey (Joker) bulunur
+    gameState.deck.push(new Tile(0, 'joker', true));
+    gameState.deck.push(new Tile(0, 'joker', true));
 }
 
-function shuffle(array) {
-    for (let i = array.length - 1; i > 0; i--) {
+function shuffleDeck() {
+    for (let i = gameState.deck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
+        [gameState.deck[i], gameState.deck[j]] = [gameState.deck[j], gameState.deck[i]];
     }
+}
+
+function determineOkey() {
+    gameState.indicatorTile = gameState.deck.pop();
+    let okeyNum = gameState.indicatorTile.number + 1;
+    if (okeyNum > 13) okeyNum = 1;
+    gameState.okeyTile = { number: okeyNum, color: gameState.indicatorTile.color };
+    
+    // Sahte okeylerin (Joker) numarasını ve rengini o anki GERÇEK OKEY kimliğiyle eşitle
+    gameState.deck.forEach(t => {
+        if (t.isJoker) {
+            t.number = gameState.okeyTile.number;
+            t.color = gameState.okeyTile.color;
+        }
+    });
+}
+
+function dealTiles() {
+    // TEST: User 21 taşla başlasın (Çekme testi için)
+    gameState.players.user.hand = gameState.deck.splice(0, 21);
+    gameState.players.bot3.hand = gameState.deck.splice(0, 21);
+    gameState.players.bot2.hand = gameState.deck.splice(0, 21);
+    gameState.players.bot1.hand = gameState.deck.splice(0, 21);
+
+    // Istakaya diz
+    gameState.userRackSlots.fill(null);
+    gameState.players.user.hand.forEach((tile, i) => {
+        if (i < 40) gameState.userRackSlots[i] = tile;
+    });
+
+    gameState.currentTurnIndex = 0;
+    gameState.hasDrawn = false;
+}
+
+// --- RENDERING (ARAYÜZ ÇİZİMİ) ---
+function renderAll() {
+    renderUserRack();
+    renderIndicator();
+    renderTable(); // Masaya açılanları göster
+    updateDeckCount();
+    updateTurnUI();
+    updateDebugConsole();
+    updateHandPoints(); 
+    renderAllDiscardZones(); // Tüm atılan taşları render et
+}
+
+function renderTable() {
+    const seriesField = document.getElementById('series-field');
+    const pairsField = document.getElementById('pairs-field');
+    
+    if (seriesField) seriesField.innerHTML = '';
+    if (pairsField) pairsField.innerHTML = '';
+
+    if (!gameState.table || !gameState.table.user) return;
+
+    // Kullanıcının açtığı her grubu masadaki ilgili alana koy
+    gameState.table.user.forEach((group, groupIdx) => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'table-group';
+        groupEl.dataset.index = groupIdx;
+        groupEl.dataset.owner = 'user';
+
+        // İşleme hedefi olarak dinle
+        groupEl.ondragover = (e) => { e.preventDefault(); groupEl.classList.add('drag-over'); };
+        groupEl.ondragleave = () => groupEl.classList.remove('drag-over');
+        groupEl.ondrop = (e) => {
+            e.preventDefault();
+            groupEl.classList.remove('drag-over');
+            const tileId = e.dataTransfer.getData('tileId');
+            if (tileId) handleProcessTile(tileId, groupIdx, 'user');
+        };
+
+        group.forEach(tile => {
+            const tEl = tile.createHTMLElement(true);
+            tEl.classList.add('table-tile');
+            groupEl.appendChild(tEl);
+        });
+        
+        // 101 KURALI: 2 taşlı olanlar çifttir, 3+ taşlılar seridir
+        if (group.length === 2 && pairsField) {
+            pairsField.appendChild(groupEl);
+        } else if (seriesField) {
+            seriesField.appendChild(groupEl);
+        }
+    });
+}
+
+function updateHandPoints() {
+    const scoreEl = document.getElementById('hand-points');
+    const pairEl = document.getElementById('hand-pairs') || document.getElementById('pair-count');
+    if (!scoreEl) return;
+
+    let totalPoints = 0;
+    let totalPairs = 0;
+
+    // 1. ISTAKADAKİ KÜMELERİ BUL (Adjacency-based clustering)
+    let currentCluster = [];
+    for (let i = 0; i < gameState.userRackSlots.length; i++) {
+        const tile = gameState.userRackSlots[i];
+        if (tile) {
+            currentCluster.push(tile);
+        } else {
+            if (currentCluster.length > 0) {
+                const res = evaluateCluster(currentCluster);
+                totalPoints += res.points;
+                totalPairs += res.pairs;
+            }
+            currentCluster = [];
+        }
+    }
+    if (currentCluster.length > 0) {
+        const res = evaluateCluster(currentCluster);
+        totalPoints += res.points;
+        totalPairs += res.pairs;
+    }
+
+    // 2. UI GÜNCELLE
+    scoreEl.innerText = totalPoints;
+    const isOpened = gameState.players.user.hasOpened;
+    scoreEl.style.color = (totalPoints >= 101 || isOpened) ? '#4aff4a' : '';
+    
+    if (pairEl) {
+        pairEl.innerText = totalPairs;
+        pairEl.style.color = (totalPairs >= 5 || isOpened) ? '#4aff4a' : '';
+    }
+}
+
+function openSeries() {
+    const isAlreadyOpen = gameState.players.user.hasOpened;
+    const scoreVal = parseInt(document.getElementById('hand-points').innerText) || 0;
+
+    // Eğer daha önce açmamışsak baraj kontrolü yap
+    if (!isAlreadyOpen && scoreVal < 101) {
+        showGameMessage("Puan yetersiz (Baraj: 101).");
+        return;
+    }
+
+    // 1. ISTAKADAKİ GEÇERLİ PERLERİ VE TEMİZLENECEK YERLERİ TOPLA
+    let currentCluster = [];
+    let openedGroups = [];
+    let slotsToClear = [];
+
+    for (let i = 0; i < gameState.userRackSlots.length; i++) {
+        const tile = gameState.userRackSlots[i];
+        if (tile) {
+            currentCluster.push(tile);
+            slotsToClear.push(i);
+        } else {
+            if (currentCluster.length >= 3 && (getSetPoints(currentCluster) > 0 || getRunPoints(currentCluster) > 0)) {
+                openedGroups.push([...currentCluster]);
+            } else {
+                slotsToClear = slotsToClear.slice(0, slotsToClear.length - currentCluster.length);
+            }
+            currentCluster = [];
+        }
+    }
+    // Son küme kontrolü
+    if (currentCluster.length >= 3 && (getSetPoints(currentCluster) > 0 || getRunPoints(currentCluster) > 0)) {
+        openedGroups.push([...currentCluster]);
+    } else {
+        slotsToClear = slotsToClear.slice(0, slotsToClear.length - currentCluster.length);
+    }
+
+    if (openedGroups.length === 0) {
+        showGameMessage("Masaya inecek geçerli per bulunamadı.");
+        return;
+    }
+
+    // 2. MASAYA SER VE ISTAKADAN SİL
+    if (!gameState.table) gameState.table = { user: [], bots: [] };
+    gameState.table.user.push(...openedGroups);
+    slotsToClear.forEach(idx => gameState.userRackSlots[idx] = null);
+    
+    gameState.players.user.hasOpened = true; // Durumu güncelle
+    renderAll();
+    showGameMessage(isAlreadyOpen ? "Yeni perler masaya indi." : "Tebrikler, masaya 101 açıldı!");
+}
+
+function openPairs() {
+    const isAlreadyOpen = gameState.players.user.hasOpened;
+    const pairsOpenedOnTable = gameState.pairsOpened;
+
+    // KURAL: Masada hiç çift açılmamışsa → 5 çift şartı aranır
+    // Masada çift açılmışsa VE sen seri açmışsan → serbestçe çift inebilirsin
+    if (!pairsOpenedOnTable && !isAlreadyOpen) {
+        showGameMessage("Çift açmak için önce seri açmalısın.");
+        return;
+    }
+
+    let totalPairs = 0;
+    let openedPairs = [];
+    let slotsToClear = [];
+    let currentCluster = [];
+
+    for (let i = 0; i < gameState.userRackSlots.length; i++) {
+        const tile = gameState.userRackSlots[i];
+        if (tile) {
+            currentCluster.push(tile);
+            slotsToClear.push(i);
+        } else {
+            if (currentCluster.length === 2) {
+                const [t1, t2] = currentCluster;
+                if (t1.number === t2.number && t1.color === t2.color && !isWildCard(t1) && !isWildCard(t2)) {
+                    openedPairs.push([...currentCluster]);
+                    totalPairs++;
+                } else {
+                    slotsToClear = slotsToClear.slice(0, slotsToClear.length - 2);
+                }
+            } else if (currentCluster.length > 0) {
+                slotsToClear = slotsToClear.slice(0, slotsToClear.length - currentCluster.length);
+            }
+            currentCluster = [];
+        }
+    }
+    // Son küme
+    if (currentCluster.length === 2) {
+        const [t1, t2] = currentCluster;
+        if (t1.number === t2.number && t1.color === t2.color && !isWildCard(t1) && !isWildCard(t2)) {
+            openedPairs.push([...currentCluster]); totalPairs++;
+        } else {
+            slotsToClear = slotsToClear.slice(0, slotsToClear.length - 2);
+        }
+    }
+
+    // KURAL KONTROLÜ:
+    // Masada çift yoksa → 5 çift zorunlu
+    if (!pairsOpenedOnTable && totalPairs < 5) {
+        showGameMessage(`Çift açmak için 5 çift gerekli (şu an: ${totalPairs}).`);
+        return;
+    }
+    // Masada çift var ama sen seri açmamışsan → yapamazsın
+    if (pairsOpenedOnTable && !isAlreadyOpen) {
+        showGameMessage("Çift inmek için önce seri açmalısın.");
+        return;
+    }
+    if (openedPairs.length === 0) {
+        showGameMessage("İnecek geçerli çift bulunamadı.");
+        return;
+    }
+
+    if (!gameState.table) gameState.table = { user: [], bots: [] };
+    gameState.table.user.push(...openedPairs);
+    slotsToClear.forEach(idx => gameState.userRackSlots[idx] = null);
+    gameState.players.user.hasOpened = true;
+
+    // Masada ilk çift açılışını kaydet
+    if (!pairsOpenedOnTable && totalPairs >= 5) {
+        gameState.pairsOpened = true;
+    }
+
+    renderAll();
+    showGameMessage(pairsOpenedOnTable ? "Çiftler masaya indi." : "Tebrikler, masaya 5 çift açıldı!");
+}
+
+function handleProcessTile(tileId, groupIdx, owner) {
+    if (!gameState.players.user.hasOpened) {
+        showGameMessage("Önce masaya açmalısın kral!");
+        return;
+    }
+
+    const rackIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
+    if (rackIdx === -1) return;
+
+    const tile = gameState.userRackSlots[rackIdx];
+    const group = gameState.table[owner][groupIdx];
+
+    if (isValidAddition(tile, group)) {
+        group.push(tile);
+        // Serileri puan/sıra bazlı tekrar sırala (Örn: 9-10-11'e 12 eklenince sona gelsin)
+        if (getRunPoints(group) > 0) group.sort((a,b) => a.number - b.number);
+        
+        gameState.userRackSlots[rackIdx] = null;
+        renderAll();
+        showGameMessage("Taş başarıyla işlendi! 🔥");
+    } else {
+        showGameMessage("Bu taş bu perle uyumlu değil.");
+    }
+}
+
+function isValidAddition(tile, group) {
+    // 1. SET KONTROLÜ (Aynı sayılar, farklı renkler)
+    const setPoints = getSetPoints(group);
+    if (setPoints > 0) {
+        if (tile.number !== group[0].number && !isWildCard(tile)) return false;
+        if (group.length >= 4) return false;
+        // Renk zaten var mı?
+        const hasColor = group.some(t => t.color === tile.color && !isWildCard(t));
+        if (hasColor && !isWildCard(tile)) return false;
+        return true;
+    }
+
+    // 2. SERİ KONTROLÜ (Aynı renk, sıralı sayılar)
+    const runPoints = getRunPoints(group);
+    if (runPoints > 0) {
+        if (tile.color !== group.find(t => !isWildCard(t)).color && !isWildCard(tile)) return false;
+        const nums = group.map(t => t.number).sort((a,b) => a - b);
+        const min = nums[0];
+        const max = nums[nums.length - 1];
+        if (tile.number === min - 1 || tile.number === max + 1 || isWildCard(tile)) return true;
+    }
+
+    return false;
+}
+
+function isWildCard(tile) {
+    if (!tile || !gameState.okeyTile) return false;
+    // Okey 101 kuralı: Sadece gerçek okey jokerdir, sahte okey sayıdır.
+    return (tile.number === gameState.okeyTile.number && tile.color === gameState.okeyTile.color && !tile.isJoker);
+}
+
+function evaluateCluster(tiles) {
+    let points = 0;
+    let pairs = 0;
+
+    if (tiles.length >= 3) {
+        const setVal = getSetPoints(tiles);
+        if (setVal > 0) {
+            points = setVal;
+        } else {
+            const runVal = getRunPoints(tiles);
+            if (runVal > 0) points = runVal;
+        }
+    } else if (tiles.length === 2) {
+        const [t1, t2] = tiles;
+        if (t1.number === t2.number && t1.color === t2.color && !isWildCard(t1) && !isWildCard(t2)) {
+            pairs = 1;
+        }
+    }
+    return { points, pairs };
+}
+
+function getSetPoints(tiles) {
+    const baseTile = tiles.find(t => !isWildCard(t));
+    if (!baseTile) return 0;
+
+    const num = baseTile.number;
+    const colors = new Set();
+    for (let t of tiles) {
+        if (!isWildCard(t)) {
+            if (t.number !== num) return 0;
+            if (colors.has(t.color)) return 0;
+            colors.add(t.color);
+        }
+    }
+    if (tiles.length > 4) return 0;
+    // Puan: Hepsi base number kadar sayılır
+    return num * tiles.length;
+}
+
+function getRunPoints(tiles) {
+    const baseColor = tiles.find(t => !isWildCard(t))?.color;
+    if (!baseColor) return 0;
+
+    // Renk kontrolü ve ardışıklık
+    // Okey'in (WildCard) değerini bulmak için tüm diziyi simüle et
+    let simulatedNumbers = [];
+    let firstNonWildIdx = tiles.findIndex(t => !isWildCard(t));
+    let startNum = tiles[firstNonWildIdx].number - firstNonWildIdx;
+
+    for (let i = 0; i < tiles.length; i++) {
+        const expectedNum = startNum + i;
+        if (expectedNum < 1 || expectedNum > 13) return 0; // Geçersiz run
+        
+        const t = tiles[i];
+        if (!isWildCard(t)) {
+            if (t.color !== baseColor || t.number !== expectedNum) return 0;
+        }
+        simulatedNumbers.push(expectedNum);
+    }
+
+    return simulatedNumbers.reduce((a, b) => a + b, 0);
+}
+
+function finishRound() {
+    logDebug("EL BİTTİ. PUANLAR HESAPLANIYOR...");
+    
+    for (let pId in gameState.players) {
+        const player = gameState.players[pId];
+        let penalty = 0;
+        if (!player.hasOpened) {
+            penalty = 202;
+        } else {
+            const rackTiles = (pId === 'user') 
+                ? gameState.userRackSlots.filter(t => t) 
+                : player.hand;
+            penalty = rackTiles.reduce((sum, t) => sum + (t.number || 0), 0);
+        }
+        player.score += penalty;
+        gameState.roundScores[pId].push(penalty);
+    }
+
+    showYazboz();
+}
+
+function showYazboz(isFinal = false) {
+    const modal = document.getElementById('scoreboard-modal');
+    const headerRow = document.getElementById('score-header-row');
+    const body = document.getElementById('score-body');
+    const nextBtn = document.getElementById('next-round-btn');
+    if (!modal || !headerRow || !body) return;
+
+    const numRounds = gameState.roundScores.user.length;
+
+    // Başlık satırını oluştur
+    headerRow.innerHTML = '<th>OYUNCU</th>';
+    for (let r = 1; r <= numRounds; r++) {
+        const th = document.createElement('th');
+        th.textContent = `El ${r}`;
+        headerRow.appendChild(th);
+    }
+    const totalTh = document.createElement('th');
+    totalTh.textContent = 'TOPLAM';
+    headerRow.appendChild(totalTh);
+
+    // Oyuncu satırlarını oluştur
+    body.innerHTML = '';
+    const playerIds = ['user', 'bot1', 'bot2', 'bot3'];
+    const totals = playerIds.map(id => gameState.players[id].score);
+    const minScore = Math.min(...totals);
+
+    playerIds.forEach(pId => {
+        const player = gameState.players[pId];
+        const tr = document.createElement('tr');
+        const isChampion = player.score === minScore;
+        if (isChampion) tr.classList.add('champion-row');
+
+        const nameTd = document.createElement('td');
+        nameTd.textContent = (isChampion ? '📍 ' : '') + player.name;
+        tr.appendChild(nameTd);
+
+        // Her elin puanı
+        (gameState.roundScores[pId] || []).forEach(pts => {
+            const td = document.createElement('td');
+            td.textContent = pts === 202 ? '202 ❌' : pts;
+            if (pts === 202) td.style.color = '#ff4444';
+            tr.appendChild(td);
+        });
+
+        const totalTd = document.createElement('td');
+        totalTd.textContent = player.score;
+        totalTd.style.fontWeight = 'bold';
+        if (isChampion) totalTd.style.color = '#ffd700';
+        tr.appendChild(totalTd);
+
+        body.appendChild(tr);
+    });
+
+    // El kontrolü
+    const isTournamentOver = numRounds >= gameState.maxRounds;
+    if (nextBtn) {
+        nextBtn.textContent = isTournamentOver ? '🏆 OYUN BİTTİ' : `SONRAKİ EL ▶ (${numRounds}/${gameState.maxRounds})`;
+        nextBtn.disabled = isTournamentOver;
+        nextBtn.style.opacity = isTournamentOver ? '0.5' : '1';
+    }
+
+    modal.style.display = 'flex';
+}
+
+function updateScoreUI() {
+    for (let pId in gameState.players) {
+        const pEl = document.querySelector(`#${pId === 'user' ? 'player-user' : pId.replace('bot', 'bot-')} .total-score`);
+        if (pEl) pEl.innerText = gameState.players[pId].score;
+    }
+}
+
+function startNewHand() {
+    // Skoru ve isimleri koru, sadece el verilerini sıfırla
+    const savedNames = {};
+    for (let p in gameState.players) savedNames[p] = gameState.players[p].name;
+    const savedScores = {};
+    for (let p in gameState.players) savedScores[p] = gameState.players[p].score;
+    const savedRoundScores = JSON.parse(JSON.stringify(gameState.roundScores));
+    const savedMaxRounds = gameState.maxRounds;
+    const savedCurrentRound = gameState.currentRound + 1;
+
+    // State'i sıfırla
+    gameState.deck = [];
+    gameState.okeyTile = null;
+    gameState.indicatorTile = null;
+    gameState.table = { user: [], bots: [] };
+    gameState.discards = {};
+    gameState.pairsOpened = false;
+    gameState.lastDiscard = null;
+    gameState.userRackSlots = new Array(40).fill(null);
+    gameState.selectedTileIds = new Set();
+    gameState.hasDrawn = false;
+    gameState.currentTurnIndex = 0;
+    gameState.currentRound = savedCurrentRound;
+    gameState.maxRounds = savedMaxRounds;
+    gameState.roundScores = savedRoundScores;
+
+    for (let p in gameState.players) {
+        gameState.players[p].name = savedNames[p];
+        gameState.players[p].score = savedScores[p];
+        gameState.players[p].hand = [];
+        gameState.players[p].hasOpened = false;
+    }
+
+    document.getElementById('scoreboard-modal').style.display = 'none';
+    initGame();
+}
+
+function renderUserRack() {
+    const row1 = document.getElementById('row-1');
+    const row2 = document.getElementById('row-2');
+    if (!row1 || !row2) return;
+
+    row1.innerHTML = '';
+    row2.innerHTML = '';
+
+    gameState.userRackSlots.forEach((tile, i) => {
+        const slot = document.createElement('div');
+        slot.className = 'tile-slot';
+        slot.dataset.index = i;
+        slot.ondragover = (e) => { e.preventDefault(); slot.classList.add('drag-hover'); };
+        slot.ondragleave = () => slot.classList.remove('drag-hover');
+        slot.ondrop = handleDropOnSlot;
+
+        // Touch olayları (Mobile)
+        slot.addEventListener('touchstart', handleTouchStartSlot, { passive: true });
+        slot.addEventListener('touchend', handleTouchEnd);
+
+        if (tile) {
+            // Sadece GERÇEK OKEY ters dönebilir, Sahte Okey veya Normal taşları zorla aç
+            const isRealOkey = (tile.number === gameState.okeyTile?.number && tile.color === gameState.okeyTile?.color && !tile.isJoker);
+            if (!isRealOkey) tile.isFlipped = false;
+            
+            slot.appendChild(tile.createHTMLElement());
+        }
+        
+        if (i < 20) row1.appendChild(slot);
+        else row2.appendChild(slot);
+    });
+
+    updateHandPoints(); // Istaka her çizildiğinde puanları güncelle
+}
+
+function renderIndicator() {
+    const container = document.getElementById('indicator-tile');
+    if (container && gameState.indicatorTile) {
+        container.innerHTML = '';
+        container.appendChild(gameState.indicatorTile.createHTMLElement(true));
+    }
+}
+
+function updateDeckCount() {
+    const el = document.querySelector('.deck-count');
+    if (el) el.innerText = gameState.deck.length;
 }
 
 function updateTurnUI() {
-    // Önceki vurguları temizle
-    document.querySelectorAll('.player-slot').forEach(slot => slot.classList.remove('active-turn'));
-    document.getElementById('player-user').classList.remove('active-turn');
+    // Aktif oyuncu vurgusu
+    document.querySelectorAll('.player-slot, #player-user').forEach(el => el.classList.remove('active-turn'));
+    const currentPlayerId = gameState.turnOrder[gameState.currentTurnIndex];
+    const activeEl = currentPlayerId === 'user' ? document.getElementById('player-user') : document.getElementById(currentPlayerId.replace('bot', 'bot-'));
+    if (activeEl) activeEl.classList.add('active-turn');
 
-    const currentPlayerId = turnOrder[currentTurnIndex];
-    let slot;
-    if (currentPlayerId === 'user') {
-        slot = document.getElementById('player-user');
-    } else {
-        const htmlId = currentPlayerId.replace('bot', 'bot-');
-        slot = document.getElementById(htmlId);
-    }
-
-    if (slot) slot.classList.add('active-turn');
-
-    // Sadece 'Açma' ve 'İşlem' butonlarını kilitle, 'Dizme' butonları açık kalsın
-    const actionButtons = document.querySelectorAll('.btn-open, .btn-util');
-    if (currentPlayerId === 'user') {
-        actionButtons.forEach(btn => btn.classList.remove('disabled'));
-    } else {
-        actionButtons.forEach(btn => btn.classList.add('disabled'));
+    // Deste parlaması
+    const deckPile = document.getElementById('deck-pile');
+    if (deckPile) {
+        if (currentPlayerId === 'user' && !gameState.hasDrawn) deckPile.classList.add('your-turn-pulse');
+        else deckPile.classList.remove('your-turn-pulse');
     }
 }
 
+// --- OYUN MANTIĞI FONKSİYONLARI ---
+function handleDraw(targetIdx = -1) {
+    if (gameState.turnOrder[gameState.currentTurnIndex] !== 'user') {
+        showGameMessage("Sıra sizde değil!");
+        return;
+    }
+    if (gameState.hasDrawn) {
+        showGameMessage("Zaten taş çektiniz!");
+        return;
+    }
+    if (gameState.deck.length === 0) return;
+
+    const newTile = gameState.deck.pop();
+    gameState.players.user.hand.push(newTile);
+
+    let finalIdx = targetIdx;
+    if (finalIdx === -1 || gameState.userRackSlots[finalIdx] !== null) {
+        finalIdx = gameState.userRackSlots.indexOf(null);
+    }
+    if (finalIdx !== -1) gameState.userRackSlots[finalIdx] = newTile;
+
+    gameState.hasDrawn = true;
+    renderAll();
+    logDebug("Taş Çekildi");
+}
+
+function processUserDiscard(tileId) {
+    if (gameState.turnOrder[gameState.currentTurnIndex] !== 'user' || !gameState.hasDrawn) {
+        showGameMessage("Önce taş çekmelisiniz!");
+        return;
+    }
+
+    const tile = gameState.players.user.hand.find(t => t.id === tileId);
+    if (!tile) return;
+
+    // Isktanadan ve elden sil
+    gameState.players.user.hand = gameState.players.user.hand.filter(t => t.id !== tileId);
+    const rackIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
+    if (rackIdx !== -1) gameState.userRackSlots[rackIdx] = null;
+
+    renderDiscard('user', tile);
+    gameState.selectedTileIds.delete(tileId);
+    nextTurn();
+}
+
 function nextTurn() {
-    hasDrawn = false; // Yeni turda taş çekme hakkını sıfırla
-    currentTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+    // Deste bittiyse ve son oyuncu hamlesini yaptıysa oyunu bitir
+    if (gameState.deck.length === 0) {
+        finishRound();
+        return;
+    }
+
+    gameState.currentTurnIndex = (gameState.currentTurnIndex + 1) % 4;
+    gameState.hasDrawn = false;
     updateTurnUI();
-    if (turnOrder[currentTurnIndex] !== 'user') {
-        setTimeout(botPlay, 2000);
+    updateDebugConsole();
+    renderAllDiscardZones(); // Çalınabilir taş durumunu güncelle
+
+    const currentPlayerId = gameState.turnOrder[gameState.currentTurnIndex];
+    if (currentPlayerId !== 'user') {
+        setTimeout(botPlay, 1000);
     }
 }
 
 async function botPlay() {
-    const botId = turnOrder[currentTurnIndex];
-
-    // 1. Taş Çek
-    if (deck.length > 0) {
-        players[botId].hand.push(deck.pop());
+    const botId = gameState.turnOrder[gameState.currentTurnIndex];
+    
+    // Çek
+    if (gameState.players[botId].hand.length < 22 && gameState.deck.length > 0) {
+        gameState.players[botId].hand.push(gameState.deck.pop());
         updateDeckCount();
     }
 
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 600));
 
-    // 2. Taş At
-    const discardIndex = Math.floor(Math.random() * players[botId].hand.length);
-    const discarded = players[botId].hand.splice(discardIndex, 1)[0];
-    renderDiscard(botId, discarded);
+    // At
+    if (gameState.players[botId].hand.length > 0) {
+        const idx = Math.floor(Math.random() * gameState.players[botId].hand.length);
+        const tile = gameState.players[botId].hand.splice(idx, 1)[0];
+        renderDiscard(botId, tile);
+    }
 
     nextTurn();
 }
 
 function renderDiscard(playerId, tile) {
+    if (!gameState.discards[playerId]) gameState.discards[playerId] = [];
+    gameState.discards[playerId].push(tile);
+    
+    // Sol oyuncunun attığı taş çalınabilir olarak işaretle
+    if (playerId !== 'user') {
+        gameState.lastDiscard = { tile, playerId };
+    } else {
+        gameState.lastDiscard = null; // Kullanıcı attıysa, çalınabilir taş yok
+    }
+    
+    renderDiscardZone(playerId);
+}
+
+function renderAllDiscardZones() {
+    for (const playerId in gameState.discards) {
+        renderDiscardZone(playerId);
+    }
+}
+
+function renderDiscardZone(playerId) {
     const htmlId = playerId === 'user' ? 'user' : playerId.replace('bot', 'bot-');
-    const zoneId = `discard-${htmlId}`;
-    const zone = document.getElementById(zoneId);
-    if (zone) {
-        zone.innerHTML = '';
-        zone.appendChild(tile.createHTMLElement(true));
-    }
-}
+    const zone = document.getElementById(`discard-${htmlId}`);
+    if (!zone) return;
+    zone.innerHTML = '';
+    const all = gameState.discards[playerId] || [];
+    if (all.length === 0) return;
 
-function userDiscard() {
-    if (turnOrder[currentTurnIndex] !== 'user') return;
-    if (!hasDrawn) {
-        alert("Önce bir taş çekmelisin!");
-        return;
-    }
-    if (selectedTileIds.size !== 1) {
-        alert("Atmak için 1 taş seçmelisin!");
-        return;
-    }
-
-    const tileId = [...selectedTileIds][0];
-    processUserDiscard(tileId);
-}
-
-function processUserDiscard(tileId) {
-    const slotIdx = userRackSlots.findIndex(t => t && t.id === tileId);
-    if (slotIdx === -1) return;
-
-    const discarded = userRackSlots[slotIdx];
-    userRackSlots[slotIdx] = null;
-    players.user.hand = userRackSlots.filter(t => t !== null);
-
-    selectedTileIds.clear();
-    renderUserRack();
-    renderDiscard('user', discarded);
-
-    // El bitti mi kontrol et
-    if (players.user.hand.length === 0) {
-        // Galibiyet Türü Tespiti
-        let type = 'normal';
-        let isOkeyFinish = (discarded.number === okeyTile.number && discarded.color === okeyTile.color);
-        let isPairsFinish = players.user.openType === 'pairs'; // Eğer çift açarak bitirdiyse
-
-        if (isPairsFinish && isOkeyFinish) type = 'okey_çift';
-        else if (isOkeyFinish) type = 'okey';
-        else if (isPairsFinish) type = 'çift';
-
-        endGame('user', type);
-        return;
-    }
-
-    nextTurn();
-}
-
-function renderUserRack() {
-    const r1 = document.getElementById('row-1');
-    const r2 = document.getElementById('row-2');
-    if (!r1 || !r2) return;
-    r1.innerHTML = ''; r2.innerHTML = '';
-
-    for (let i = 0; i < 40; i++) {
-        const slot = document.createElement('div');
-        slot.className = 'tile-slot';
-        slot.dataset.index = i;
-
-        // Slot üzerine bırakma (Drop) olayı
-        slot.addEventListener('dragover', (e) => e.preventDefault());
-        slot.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const draggedId = e.dataTransfer.getData('tileId');
-            if (draggedId) {
-                moveTileToSlot(draggedId, i);
-            }
-        });
-
-        const tile = userRackSlots[i];
-        if (tile) {
-            slot.appendChild(tile.createHTMLElement());
-        }
-
-        if (i < 20) r1.appendChild(slot);
-        else r2.appendChild(slot);
-    }
-
-    updateHandStats();
-}
-
-function moveTileToSlot(tileId, targetIdx) {
-    const sourceIdx = userRackSlots.findIndex(t => t && t.id === tileId);
-    if (sourceIdx === -1) return;
-
-    const tile = userRackSlots[sourceIdx];
-
-    // Eğer hedefte taş varsa yer değiştir (Swap)
-    const targetTile = userRackSlots[targetIdx];
-    userRackSlots[targetIdx] = tile;
-    userRackSlots[sourceIdx] = targetTile;
-
-    players.user.hand = userRackSlots.filter(t => t !== null);
-    renderUserRack();
-}
-
-function updateHandStats() {
-    const ptsEl = document.getElementById('hand-points');
-    const pairsEl = document.getElementById('hand-pairs');
-    if (!ptsEl || !pairsEl) return;
-
-    let totalScore = 0;
-    let pCount = 0;
-
-    // Boşluklara göre ayırarak puanla (Istaka üzerindeki fiziksel dizilime göre)
-    let currentGroup = [];
-    for (let i = 0; i <= 40; i++) {
-        const tile = (i < 40) ? userRackSlots[i] : null;
-        if (tile === null) {
-            if (currentGroup.length >= 3) {
-                let set = validateVisualSet(currentGroup);
-                if (set.valid) totalScore += set.sum;
-            }
-            currentGroup = [];
+    all.forEach((tile, index) => {
+        const tileEl = tile.createHTMLElement(true);
+        tileEl.style.position = 'absolute';
+        tileEl.style.setProperty('--idx', index);
+        tileEl.style.zIndex = index + 5;
+        if (!zone.classList.contains('expanded')) {
+            tileEl.style.top = `${index * 2}px`;
+            tileEl.style.left = `${index * 2}px`;
+            tileEl.style.transform = 'scale(0.95)';
         } else {
-            currentGroup.push(tile);
+            tileEl.style.top = '0px';
+            tileEl.style.left = `${index * 30}px`;
+            tileEl.style.transform = 'scale(1)';
+            tileEl.style.zIndex = index + 100;
+        }
+
+        // Çalınabilir taş: en üst taş, botun attığı, sıra bizde, henüz çekmedik
+        const isTopTile = index === all.length - 1;
+        const isStealable = isTopTile
+            && gameState.lastDiscard?.tile?.id === tile.id
+            && gameState.turnOrder[gameState.currentTurnIndex] === 'user'
+            && !gameState.hasDrawn;
+
+        if (isStealable) {
+            tileEl.classList.add('stealable-tile');
+            tileEl.title = 'Bu taşı çalmak için tıkla!';
+            tileEl.addEventListener('click', (e) => { e.stopPropagation(); attemptStealDiscard(); });
+        }
+        zone.appendChild(tileEl);
+    });
+}
+
+function attemptStealDiscard() {
+    if (!gameState.lastDiscard) return;
+    if (gameState.hasDrawn) { showGameMessage("Zaten taş çektin!"); return; }
+    if (gameState.turnOrder[gameState.currentTurnIndex] !== 'user') return;
+
+    const { tile, playerId } = gameState.lastDiscard;
+
+    // Sınav: Bu taşla birlikte elimde 101 puan eder mi?
+    const hypotheticalHand = [...gameState.players.user.hand, tile];
+    const hypotheticalGroups = findGroups(hypotheticalHand);
+    
+    // Tüm grupların puanını hesapla
+    let totalPts = 0;
+    [...hypotheticalGroups.complete].forEach(g => {
+        totalPts += evaluateCluster(g).points;
+    });
+
+    if (totalPts < 101) {
+        showGameMessage(`Bu taş (${tile.number}) ile ${totalPts} puan olur, 101 yapamıyorsun.`);
+        return;
+    }
+
+    // Çal! - Discard yığından çıkar, elime ekle
+    const discardArr = gameState.discards[playerId];
+    const idx = discardArr.findIndex(t => t.id === tile.id);
+    if (idx !== -1) discardArr.splice(idx, 1);
+
+    gameState.players.user.hand.push(tile);
+    const emptySlot = gameState.userRackSlots.indexOf(null);
+    if (emptySlot !== -1) gameState.userRackSlots[emptySlot] = tile;
+
+    gameState.lastDiscard = null;
+    gameState.hasDrawn = true; // Çekme hakkını kullandı ("steal" de bir çekimdir)
+    renderAll();
+    showGameMessage(`${tile.number} numaralı taş çalındı! 🔥`);
+}
+
+function toggleTileSelection(tileId) {
+    // Istakadaki tüm taşlar arasından bulalım
+    const tile = gameState.userRackSlots.find(t => t?.id === tileId);
+    if (tile) {
+        // Sadece GERÇEK OKEY ise ters/düz döndür (Flip)
+        const isRealOkey = (tile.number === gameState.okeyTile?.number && tile.color === gameState.okeyTile?.color && !tile.isJoker);
+        if (isRealOkey) {
+            tile.isFlipped = !tile.isFlipped;
+        } else {
+            tile.isFlipped = false; // Sahte okey ve normal taşlar asla ters dönemez
         }
     }
 
-    // Çift Sayısı (Eldeki toplam çiftler)
-    let processed = new Set();
-    let hand = players.user.hand;
-    for (let i = 0; i < hand.length; i++) {
-        if (processed.has(hand[i].id)) continue;
-        let mIdx = hand.findIndex((t, idx) => idx > i && !processed.has(t.id) && t.number === hand[i].number && t.color === hand[i].color && !t.isJoker);
-        if (mIdx !== -1) {
-            pCount++;
-            processed.add(hand[i].id);
-            processed.add(hand[mIdx].id);
-        }
-    }
-
-    ptsEl.innerText = totalScore;
-    pairsEl.innerText = pCount;
-}
-
-function validateVisualSet(tiles) {
-    // 1. Aynı Renk Seri Kontrolü
-    let isSeq = tiles.every(t => t.color === tiles[0].color);
-    if (isSeq) {
-        let sorted = [...tiles].sort((a, b) => a.number - b.number);
-        // 12-13-1 YASAĞI: 13'ten sonra 1 gelmesi geçersizdir (101 kuralı)
-        // Eğer grupta hem 13 hem 1 varsa bu bir seri olamaz.
-        let has1 = sorted.some(t => t.number === 1);
-        let has13 = sorted.some(t => t.number === 13);
-        if (has1 && has13) return { valid: false };
-
-        let seqValid = sorted.every((t, i, arr) => i === 0 || t.number === arr[i - 1].number + 1);
-        if (seqValid) return { valid: true, sum: tiles.reduce((s, t) => s + t.number, 0) };
-    }
-
-    // 2. Farklı Renk Grup Kontrolü
-    let isGrp = tiles.every(t => t.number === tiles[0].number);
-    if (isGrp) {
-        let colors = new Set(tiles.map(t => t.color));
-        if (colors.size === tiles.length) return { valid: true, sum: tiles.reduce((s, t) => s + t.number, 0) };
-    }
-
-    return { valid: false };
-}
-
-function toggleTileSelection(id) {
-    if (selectedTileIds.has(id)) selectedTileIds.delete(id);
-    else selectedTileIds.add(id);
+    if (gameState.selectedTileIds.has(tileId)) gameState.selectedTileIds.delete(tileId);
+    else gameState.selectedTileIds.add(tileId);
     renderUserRack();
 }
 
-function renderIndicator() {
-    const el = document.getElementById('indicator-tile');
-    if (!el) return;
+function moveTileToSlot(tileId, newIdx) {
+    const oldIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
+    if (oldIdx === -1) return;
+
+    const tile = gameState.userRackSlots[oldIdx];
+    const targetTile = gameState.userRackSlots[newIdx];
+
+    gameState.userRackSlots[newIdx] = tile;
+    gameState.userRackSlots[oldIdx] = targetTile;
+
+    renderUserRack();
+}
+
+// --- EVENT HANDLERS (DROP / TOUCH) ---
+function handleDropOnSlot(e) {
+    e.preventDefault();
+    this.classList.remove('drag-hover');
+    const targetIdx = parseInt(this.dataset.index);
+
+    const isFromDeck = e.dataTransfer.getData('source') === 'deck';
+    if (isFromDeck) {
+        handleDraw(targetIdx);
+    } else {
+        const tileId = e.dataTransfer.getData('tileId');
+        if (tileId) moveTileToSlot(tileId, targetIdx);
+    }
+}
+
+function handleTouchStartSlot(e) {
+    const idx = parseInt(this.dataset.index);
+    const tile = gameState.userRackSlots[idx];
+    if (tile) {
+        gameState.touch.draggedTileId = tile.id;
+        createPhantom(this);
+    }
+}
+
+function handleTouchEnd(e) {
+    if (gameState.touch.phantom) {
+        gameState.touch.phantom.remove();
+        gameState.touch.phantom = null;
+
+        const touch = e.changedTouches[0];
+        const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        // Desteden çekme kontrolü
+        if (gameState.touch.sourceType === 'deck') {
+            const slot = targetEl?.closest('.tile-slot');
+            if (slot) handleDraw(parseInt(slot.dataset.index));
+            else if (targetEl?.closest('.rack-row')) handleDraw(-1);
+            gameState.touch.sourceType = null;
+            return;
+        }
+
+        // Isktan içi veya Atma kontrolü
+        if (gameState.touch.draggedTileId) {
+            const slot = targetEl?.closest('.tile-slot');
+            const discard = targetEl?.closest('#discard-user');
+
+            if (slot) moveTileToSlot(gameState.touch.draggedTileId, parseInt(slot.dataset.index));
+            else if (discard) processUserDiscard(gameState.touch.draggedTileId);
+
+            gameState.touch.draggedTileId = null;
+        }
+    }
+}
+
+
+// --- UTILS (YARDIMCI ARAÇLAR) ---
+function createPhantom(sourceEl) {
+    const p = document.createElement('div');
+    p.className = 'tile phantom-drag';
+    p.style.position = 'fixed';
+    p.style.zIndex = '10000';
+    p.style.pointerEvents = 'none';
+    p.style.opacity = '0.7';
+    p.innerHTML = sourceEl.innerHTML;
+    document.body.appendChild(p);
+    gameState.touch.phantom = p;
+}
+
+function showGameMessage(msg) {
+    const old = document.querySelector('.game-toast');
+    if (old) old.remove();
+    const toast = document.createElement('div');
+    toast.className = 'game-toast';
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 500); }, 2500);
+}
+
+function updateDebugConsole() {
+    let el = document.getElementById('debug-console');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'debug-console';
+        document.body.appendChild(el);
+    }
     el.innerHTML = `
-        <span class="tile-number" style="color: ${getColorCode(indicatorTile.color)}">${indicatorTile.number}</span>
-        <div class="tile-dot" style="background: ${getColorCode(indicatorTile.color)}"></div>
+        TURN: ${gameState.turnOrder[gameState.currentTurnIndex]}<br>
+        HAS_DRAWN: ${gameState.hasDrawn}<br>
+        DECK: ${gameState.deck.length}
     `;
 }
 
-function updateDeckCount() {
-    const countText = document.querySelector('.deck-count');
-    const deckPile = document.getElementById('deck-pile');
-    if (countText) {
-        countText.innerText = deck.length;
-        if (deck.length === 0) {
-            countText.classList.add('hidden');
-            if (deckPile) deckPile.classList.add('empty');
-        } else {
-            countText.classList.remove('hidden');
-            if (deckPile) deckPile.classList.remove('empty');
-        }
-    }
-}
+function logDebug(msg) { console.log("[101]", msg); }
 
-function endGame(winnerId, type = 'normal') {
-    const modal = document.getElementById('scoreboard-modal');
-    const scoreBody = document.getElementById('score-body');
-    if (!modal || !scoreBody) return;
-
-    scoreBody.innerHTML = '';
-
-    // Katsayıları Belirle (Kralın Kuralları)
-    let mult = 1;
-    let winnerBonus = 101;
-    let noOpenPenalty = 202;
-
-    if (type === 'okey' || type === 'çift') {
-        mult = 2;
-        winnerBonus = 202;
-        noOpenPenalty = 404;
-    } else if (type === 'okey_çift') {
-        mult = 8;
-        winnerBonus = 808;
-        noOpenPenalty = 808;
+// --- DIZME VE GRUPLAMA MANTIGI (GLOBAL) ---
+function findGroups(hand) {
+    let result = { complete: [], pairs: [], potential: [], leftovers: [...hand] };
+    
+    // 1. GERÇEK OKEYLERİ AYIR (WildCards)
+    const okeys = [];
+    for (let i = 0; i < result.leftovers.length; i++) {
+        const t = result.leftovers[i];
+        if (isWildCard(t)) { okeys.push(result.leftovers.splice(i, 1)[0]); i--; }
     }
 
-    Object.keys(players).forEach(pid => {
-        let penalty = 0;
-        let pHand = players[pid].hand;
+    // 2. DOĞAL TAMAMLANMIŞ SERİLER VE SETLER (3+) - OKEY KULLANMADAN
+    const sets = findCompleteSets(result.leftovers);
+    sets.forEach(g => { result.complete.push(g); g.forEach(t => removeTileFromList(result.leftovers, t)); });
 
-        if (pid === winnerId) {
-            penalty = -winnerBonus;
-        } else {
-            // Eğer kimse açmadan deste bittiyse (winnerId 'none') herkese 202 yaz
-            if (winnerId === 'none' && !players[pid].isOpened) {
-                penalty = 202;
-            } else if (!players[pid].isOpened) {
-                penalty = noOpenPenalty;
-            } else {
-                // Elde kalan sayıların toplamı * Çarpan
-                let handSum = pHand.reduce((s, t) => s + (t.number === okeyTile.number && t.color === okeyTile.color ? 20 : t.number), 0);
-                penalty = handSum * mult;
-            }
-        }
+    const runs = findCompleteRuns(result.leftovers);
+    runs.forEach(g => { result.complete.push(g); g.forEach(t => removeTileFromList(result.leftovers, t)); });
 
-        // Okey Çaldırma Cezası (+101) varsa buraya eklenmeli
-        if (players[pid].penalty101) {
-            penalty += 101;
-        }
-
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${pid === 'user' ? 'Fatih (Sen)' : pid.toUpperCase()} ${pid === winnerId ? '🏆' : ''}</td>
-            <td style="color: ${penalty <= 0 ? '#4caf50' : '#ff5252'}">${penalty}</td>
-        `;
-        scoreBody.appendChild(row);
-    });
-
-    modal.style.display = 'flex';
-}
-
-function getColorCode(color) {
-    const colorMap = { 'red': '#d32f2f', 'blue': '#1976d2', 'black': '#212121', 'yellow': '#fbc02d', 'any': '#ff5722' };
-    return colorMap[color] || '#333';
-}
-
-// Akıllı Seri Dizme
-// Akıllı Seri Dizme (Kayıtlı Yuvalara)
-function autoSortSeries() {
-    let hand = [...players.user.hand];
-    let bestSets = [];
-    let usedIds = new Set();
-
-    // 1. Tüm olası perleri (Grup ve Seri) puanlarıyla beraber bul
-    let allPossible = [];
-
-    // Grupları bul (Sayıları aynı, renkleri farklı)
-    let byNum = {};
-    hand.forEach(t => {
-        if (!t.isJoker) {
-            byNum[t.number] = byNum[t.number] || [];
-            byNum[t.number].push(t);
-        }
-    });
-    Object.keys(byNum).forEach(num => {
-        let tiles = byNum[num];
-        // Renkleri tekilleştir (aynı renkli aynı sayı grupta olamaz)
-        let uniqueTiles = [];
-        let colorsSeen = new Set();
-        tiles.forEach(t => {
-            if (!colorsSeen.has(t.color)) {
-                uniqueTiles.push(t);
-                colorsSeen.add(t.color);
-            }
-        });
-        if (uniqueTiles.length >= 3) {
-            allPossible.push({
-                tiles: uniqueTiles,
-                sum: uniqueTiles.reduce((s, t) => s + t.number, 0),
-                type: 'group'
-            });
+    // 3. ÇİFTLERİ AYIR (Aynı Sayı, Aynı Renk)
+    const identicals = {};
+    result.leftovers.forEach(t => { const k = `${t.number}_${t.color}`; if (!identicals[k]) identicals[k] = []; identicals[k].push(t); });
+    Object.keys(identicals).forEach(k => {
+        let list = identicals[k];
+        while (list.length >= 2) { 
+            const pair = [list.pop(), list.pop()]; 
+            result.pairs.push(pair); 
+            pair.forEach(t => removeTileFromList(result.leftovers, t)); 
         }
     });
 
-    // Serileri bul (Renkleri aynı, sayıları ardışık)
-    COLORS.forEach(color => {
-        let sameColor = hand.filter(t => t.color === color && !t.isJoker).sort((a, b) => a.number - b.number);
-        // Aynı sayıdan birden fazla varsa teke indir (seri için)
-        let uniqueInColor = [];
-        sameColor.forEach(t => {
-            if (uniqueInColor.length === 0 || t.number !== uniqueInColor[uniqueInColor.length - 1].number) {
-                uniqueInColor.push(t);
-            }
-        });
+    // 4. STRATEJİK OKEY KULLANIMI: TÜM ADAYLARI PUANA GÖRE SIRALA
+    if (okeys.length > 0) {
+        let allCandidates = [];
 
-        let temp = [];
-        for (let i = 0; i < uniqueInColor.length; i++) {
-            if (temp.length === 0 || uniqueInColor[i].number === temp[temp.length - 1].number + 1) {
-                temp.push(uniqueInColor[i]);
-            } else {
-                if (temp.length >= 3) allPossible.push({ tiles: [...temp], sum: temp.reduce((s, t) => s + t.number, 0), type: 'series' });
-                temp = [uniqueInColor[i]];
-            }
-        }
-        if (temp.length >= 3) allPossible.push({ tiles: [...temp], sum: temp.reduce((s, t) => s + t.number, 0), type: 'series' });
-    });
-
-    // 2. Greedy (Açgözlü) seçim: En yüksek puanlı perleri seç (overlap/çakışma olmadan)
-    allPossible.sort((a, b) => b.sum - a.sum);
-    allPossible.forEach(set => {
-        if (set.tiles.every(t => !usedIds.has(t.id))) {
-            bestSets.push(set);
-            set.tiles.forEach(t => usedIds.add(t.id));
-        }
-    });
-
-    // 3. Istakaya Yerleştirme
-    userRackSlots.fill(null);
-    let currentIdx = 0;
-
-    // Perleri koy
-    bestSets.forEach(set => {
-        set.tiles.forEach(t => { if (currentIdx < 40) userRackSlots[currentIdx++] = t; });
-        currentIdx++;
-    });
-
-    // Kalanları "Potansiyel" yan yana gelecek şekilde diz
-    let leftovers = hand.filter(t => !usedIds.has(t.id)).sort((a, b) => (COLORS.indexOf(a.color) - COLORS.indexOf(b.color)) || (a.number - b.number));
-
-    if (leftovers.length > 0) {
-        let tempGroup = [leftovers[0]];
-        for (let i = 1; i < leftovers.length; i++) {
-            let prev = leftovers[i - 1];
-            let curr = leftovers[i];
-            // Potansiyel Seri veya Potansiyel Grup (Kardeş taşlar)
-            if ((curr.color === prev.color && curr.number === prev.number + 1) || (curr.number === prev.number)) {
-                tempGroup.push(curr);
-            } else {
-                tempGroup.forEach(t => { if (currentIdx < 40) userRackSlots[currentIdx++] = t; });
-                currentIdx++;
-                tempGroup = [curr];
-            }
-        }
-        tempGroup.forEach(t => { if (currentIdx < 40) userRackSlots[currentIdx++] = t; });
-    }
-
-    selectedTileIds.clear();
-    renderUserRack();
-}
-
-// Akıllı Çift Dizme (Kayıtlı Yuvalara)
-function autoSortPairs() {
-    let hand = [...players.user.hand];
-    let processedIds = new Set();
-    userRackSlots.fill(null);
-    let currentIdx = 0;
-
-    // 1. Çiftleri Diz
-    for (let i = 0; i < hand.length; i++) {
-        if (processedIds.has(hand[i].id)) continue;
-        let mIdx = hand.findIndex((t, idx) => idx > i && !processedIds.has(t.id) && t.number === hand[i].number && t.color === hand[i].color && !t.isJoker);
-        if (mIdx !== -1) {
-            userRackSlots[currentIdx++] = hand[i];
-            userRackSlots[currentIdx++] = hand[mIdx];
-            currentIdx++; // Çift sonrası boşluk
-            processedIds.add(hand[i].id);
-            processedIds.add(hand[mIdx].id);
-        }
-    }
-
-    // 2. Kalanları Diz
-    let others = hand.filter(t => !processedIds.has(t.id)).sort((a, b) => a.number - b.number || COLORS.indexOf(a.color) - COLORS.indexOf(b.color));
-    others.forEach(t => { if (currentIdx < 40) userRackSlots[currentIdx++] = t; });
-
-    selectedTileIds.clear();
-    renderUserRack();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    initGame();
-
-    const actions = document.querySelectorAll('.action-rect');
-    // Index 0: SERİ, 1: ÇİFT, 2: SERİ AÇ, 3: ÇİFT AÇ, 4: İŞLE, 5: AT, 6: GERİ AL
-    if (actions[0]) actions[0].onclick = autoSortSeries;
-    if (actions[1]) actions[1].onclick = autoSortPairs;
-    if (actions[2]) actions[2].onclick = handleOpenSeries;
-    if (actions[3]) actions[3].onclick = handleOpenPairs;
-    if (actions[4]) actions[4].onclick = handleProcess; // İŞLE butonu
-    if (actions[5]) actions[5].onclick = userDiscard; // AT butonu
-
-    // Discard Alanlarını Sürükle-Bırak VE Dokunmatik (Tıkla-At) için ayarla
-    document.querySelectorAll('.discard-zone').forEach(zone => {
-        // Dokunmatik/Tıklama Desteği (Mobile Friendly)
-        zone.addEventListener('click', () => {
-            if (turnOrder[currentTurnIndex] === 'user' && zone.id === 'discard-user') {
-                if (selectedTileIds.size === 1) {
-                    const tileId = [...selectedTileIds][0];
-                    processUserDiscard(tileId);
-                } else {
-                    // Belki bir ipucu gösterilebilir: "Önce atacağınız taşı seçin"
+        // Seri Adayları (Run candidates)
+        const runCands = groupTilesByColor(result.leftovers);
+        Object.keys(runCands).forEach(clr => {
+            let list = runCands[clr].sort((a,b) => a.number - b.number);
+            for (let i = 0; i < list.length - 1; i++) {
+                if (list[i+1].number === list[i].number + 1 || list[i+1].number === list[i].number + 2) {
+                    const group = [list[i], list[i+1]];
+                    let potentialVal = evaluateCluster([...group, okeys[0]]).points;
+                    allCandidates.push({ tiles: group, val: potentialVal, type: 'run' });
                 }
             }
         });
 
-        zone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            zone.classList.add('drag-over');
-        });
-        zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-        zone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            zone.classList.remove('drag-over');
-            const tileId = e.dataTransfer.getData('tileId');
-            if (tileId && turnOrder[currentTurnIndex] === 'user') {
-                processUserDiscard(tileId);
+        // Set Adayları (Set candidates)
+        const setCands = groupTilesByNumber(result.leftovers);
+        Object.keys(setCands).forEach(num => {
+            let list = setCands[num];
+            if (list.length >= 2) {
+                if (list[0].color !== list[1].color) {
+                    const group = [list[0], list[1]];
+                    let potentialVal = evaluateCluster([...group, okeys[0]]).points;
+                    allCandidates.push({ tiles: group, val: potentialVal, type: 'set' });
+                }
             }
         });
-    });
 
-    document.getElementById('deck-pile').addEventListener('click', () => {
-        if (turnOrder[currentTurnIndex] === 'user' && deck.length > 0) {
-            if (hasDrawn) {
-                alert("Zaten bu turda taş çektiniz!");
-                return;
+        // EN YÜKSEK PUAN GETİREN ADAYLARA OKEYLERİ DAĞIT
+        allCandidates.sort((a, b) => b.val - a.val);
+
+        allCandidates.forEach(cand => {
+            if (okeys.length > 0) {
+                const stillActive = cand.tiles.every(t => result.leftovers.find(it => it.id === t.id));
+                if (stillActive) {
+                    result.complete.push([...cand.tiles, okeys.pop()]);
+                    cand.tiles.forEach(t => removeTileFromList(result.leftovers, t));
+                }
             }
-            const newTile = deck.pop();
-            players.user.hand.push(newTile);
-
-            // İlk boş yuvaya ekle
-            let emptyIdx = userRackSlots.indexOf(null);
-            if (emptyIdx !== -1) userRackSlots[emptyIdx] = newTile;
-
-            hasDrawn = true;
-            renderUserRack();
-            updateDeckCount();
-
-            // Deste bittiyse oyun sonu kontrolü
-            if (deck.length === 0) {
-                setTimeout(() => endGame('none'), 1500);
-            }
-        }
-    });
-
-    const restartBtn = document.getElementById('restart-btn');
-    if (restartBtn) {
-        restartBtn.onclick = () => location.reload();
+        });
     }
 
-    // Üst Menü Butonları
-    const newGameTop = document.getElementById('new-game-top');
-    if (newGameTop) newGameTop.onclick = () => {
-        if (confirm("Yeni oyun başlatmak istediğinize emin misiniz?")) location.reload();
+    // Kalan Okeyleri Başa Al
+    okeys.forEach(o => result.leftovers.unshift(o));
+    return result;
+}
+
+// YARDIMCI FOKSİYONLAR
+function removeTileFromList(list, tile) {
+    const idx = list.findIndex(t => t.id === tile.id);
+    if (idx !== -1) list.splice(idx, 1);
+}
+function groupTilesByNumber(list) {
+    const res = {};
+    list.forEach(t => { if (!res[t.number]) res[t.number] = []; res[t.number].push(t); });
+    return res;
+}
+function groupTilesByColor(list) {
+    const res = {};
+    list.forEach(t => { if (!res[t.color]) res[t.color] = []; res[t.color].push(t); });
+    return res;
+}
+function findCompleteSets(list) {
+    const sets = [];
+    const grouped = groupTilesByNumber(list);
+    Object.keys(grouped).forEach(num => {
+        let u = []; let s = new Set();
+        grouped[num].forEach(t => { if (!s.has(t.color)) { u.push(t); s.add(t.color); } });
+        if (u.length >= 3) sets.push(u);
+    });
+    return sets;
+}
+function findCompleteRuns(list) {
+    const runs = [];
+    const grouped = groupTilesByColor(list);
+    Object.keys(grouped).forEach(clr => {
+        let l = grouped[clr].sort((a,b) => a.number - b.number);
+        let temp = [];
+        for (let i = 0; i < l.length; i++) {
+            if (temp.length === 0 || l[i].number === temp[temp.length - 1].number + 1) temp.push(l[i]);
+            else { if (temp.length >= 3) runs.push([...temp]); temp = [l[i]]; }
+        }
+        if (temp.length >= 3) runs.push(temp);
+    });
+    return runs;
+}
+
+function autoSortSeries() {
+    const userHand = gameState.players.user.hand.filter(t => t);
+    let { complete, pairs, potential, leftovers } = findGroups(userHand);
+
+    gameState.userRackSlots.fill(null);
+    let currentIdx = 0;
+    complete.forEach(group => { group.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
+    pairs.forEach(pair => { pair.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
+    potential.forEach(group => { group.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
+    leftovers.sort((a,b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || a.number - b.number)
+             .forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; });
+
+    renderUserRack();
+    showGameMessage("Dizilim tamamlandı.");
+}
+
+function autoSortPairs() {
+    let hand = [...gameState.players.user.hand.filter(t => t)];
+    let pairs = [];
+    hand.sort((a, b) => a.number - b.number || a.color.localeCompare(b.color));
+    for (let i = 0; i < hand.length - 1; i++) {
+        if (!hand[i].isJoker && hand[i].number === hand[i+1].number && hand[i].color === hand[i+1].color) {
+            pairs.push([hand[i], hand[i+1]]);
+            hand.splice(i, 2); i--;
+        }
+    }
+    let { complete, potential, leftovers } = findGroups(hand);
+    gameState.userRackSlots.fill(null);
+    let currentIdx = 0;
+    pairs.forEach(p => { if (currentIdx < 39) { gameState.userRackSlots[currentIdx++] = p[0]; gameState.userRackSlots[currentIdx++] = p[1]; currentIdx++; } });
+    complete.forEach(g => { g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
+    potential.forEach(g => { g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
+    leftovers.sort((a,b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || a.number - b.number).forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; });
+    renderUserRack();
+    showGameMessage("Hibrit dizilim tamamlandı.");
+}
+
+// --- DOM LİSTENERS ---
+document.addEventListener('DOMContentLoaded', () => {
+    // Statik Butonlar
+    const btnDraw = document.getElementById('btn-draw-stone');
+    if (btnDraw) btnDraw.onclick = () => handleDraw(-1);
+
+    const btnSortSeries = document.getElementById('btn-sort-series');
+    if (btnSortSeries) btnSortSeries.onclick = autoSortSeries;
+
+    const btnSortPairs = document.getElementById('btn-sort-pairs');
+    if (btnSortPairs) btnSortPairs.onclick = autoSortPairs;
+
+    const btnDiscard = document.getElementById('btn-discard');
+    if (btnDiscard) {
+        btnDiscard.onclick = () => {
+            if (gameState.selectedTileIds.size === 1) {
+                const id = [...gameState.selectedTileIds][0];
+                processUserDiscard(id);
+            } else {
+                showGameMessage("Önce bir taş seç!");
+            }
+        };
+    }
+
+    const btnOpenSeries = document.getElementById('btn-open-series');
+    if (btnOpenSeries) btnOpenSeries.onclick = openSeries;
+
+    const btnOpenPairs = document.getElementById('btn-open-pairs');
+    if (btnOpenPairs) btnOpenPairs.onclick = openPairs;
+
+    // --- NAV BUTONLARI ---
+    const newGameBtn = document.getElementById('new-game-top');
+    if (newGameBtn) newGameBtn.onclick = () => {
+        if (confirm("Yeni oyun başlatılsın mı? Tüm puanlar sıfırlanacak.")) location.reload();
     };
 
-    const showYazBoz = document.getElementById('show-yazboz');
-    if (showYazBoz) showYazBoz.onclick = () => {
-        const modal = document.getElementById('scoreboard-modal');
-        if (modal) modal.style.display = (modal.style.display === 'flex' ? 'none' : 'flex');
-    };
+    const yazbozBtn = document.getElementById('show-yazboz');
+    if (yazbozBtn) yazbozBtn.onclick = () => showYazboz();
+
+    const nextRoundBtn = document.getElementById('next-round-btn');
+    if (nextRoundBtn) nextRoundBtn.onclick = startNewHand;
+
+    const restartBtn = document.getElementById('restart-btn');
+    if (restartBtn) restartBtn.onclick = () => location.reload();
+
+    // --- AYARLAR ---
+    let roundsVal = gameState.maxRounds;
+    const roundsDisplay = document.getElementById('rounds-display');
 
     const openSettings = document.getElementById('open-settings');
     if (openSettings) openSettings.onclick = () => {
-        const modal = document.getElementById('settings-modal');
-        if (modal) modal.style.display = 'flex';
+        const fields = { 'name-user': 'user', 'name-bot1': 'bot1', 'name-bot2': 'bot2', 'name-bot3': 'bot3' };
+        Object.entries(fields).forEach(([id, pId]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = gameState.players[pId].name;
+        });
+        roundsVal = gameState.maxRounds;
+        if (roundsDisplay) roundsDisplay.textContent = roundsVal;
+        document.getElementById('settings-modal').style.display = 'flex';
     };
+
+    document.getElementById('rounds-dec')?.addEventListener('click', () => {
+        if (roundsVal > 1) { roundsVal--; if (roundsDisplay) roundsDisplay.textContent = roundsVal; }
+    });
+    document.getElementById('rounds-inc')?.addEventListener('click', () => {
+        if (roundsVal < 11) { roundsVal++; if (roundsDisplay) roundsDisplay.textContent = roundsVal; }
+    });
 
     const saveSettings = document.getElementById('save-settings');
     if (saveSettings) saveSettings.onclick = () => {
-        // Ayarları kaydet
-        gameConfig.names.user = document.getElementById('name-user').value;
-        gameConfig.names.bot1 = document.getElementById('name-bot1').value;
-        gameConfig.names.bot2 = document.getElementById('name-bot2').value;
-        gameConfig.names.bot3 = document.getElementById('name-bot3').value;
-        gameConfig.maxRounds = parseInt(document.getElementById('max-rounds').value);
-        gameConfig.isMuted = document.getElementById('mute-sounds').checked;
-        gameConfig.theme = document.getElementById('table-theme').value;
-
-        applyTheme(gameConfig.theme);
-        updatePlayerNamesUI();
-
+        const fields = { 'name-user': 'user', 'name-bot1': 'bot1', 'name-bot2': 'bot2', 'name-bot3': 'bot3' };
+        Object.entries(fields).forEach(([id, pId]) => {
+            const val = document.getElementById(id)?.value.trim();
+            if (val) gameState.players[pId].name = val;
+        });
+        const nameMap = { bot1: '#bot-1 .name-tag', bot2: '#bot-2 .name-tag', bot3: '#bot-3 .name-tag' };
+        Object.entries(nameMap).forEach(([pId, sel]) => {
+            const el = document.querySelector(sel);
+            if (el) el.textContent = gameState.players[pId].name;
+        });
+        const userNameTag = document.querySelector('.user-name');
+        if (userNameTag) userNameTag.textContent = gameState.players.user.name;
+        gameState.maxRounds = roundsVal;
         document.getElementById('settings-modal').style.display = 'none';
-        alert("Ayarlar kaydedildi!");
+        showGameMessage(`Kaydedildi! (${roundsVal} el)`);
     };
-});
 
-function updatePlayerNamesUI() {
-    // User Name
-    const uName = document.querySelector('.user-name');
-    if (uName) uName.innerText = gameConfig.names.user;
-
-    // Bot Names
-    const b1Name = document.querySelector('#bot-1 .name-tag');
-    if (b1Name) b1Name.innerText = gameConfig.names.bot1;
-
-    const b2Name = document.querySelector('#bot-2 .name-tag');
-    if (b2Name) b2Name.innerText = gameConfig.names.bot2;
-
-    const b3Name = document.querySelector('#bot-3 .name-tag');
-    if (b3Name) b3Name.innerText = gameConfig.names.bot3;
-}
-
-function applyTheme(theme) {
-    const table = document.querySelector('.table');
-    if (!table) return;
-
-    if (theme === 'classic') table.style.background = '#164227';
-    else if (theme === 'dark') table.style.background = '#0d0d0d';
-    else if (theme === 'wood') table.style.background = 'linear-gradient(rgba(78, 52, 46, 0.9), rgba(78, 52, 46, 0.9)), url("https://www.transparenttextures.com/patterns/wood-pattern.png")';
-}
-
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js').catch(err => console.log('SW failed', err));
+    // Modallara arka plan tıklamasıyla kapat
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
     });
-}
+
+    // Deste Sürükleme
+    const deckPile = document.getElementById('deck-pile');
+    if (deckPile) {
+        deckPile.draggable = true;
+        deckPile.addEventListener('dragstart', (e) => { e.dataTransfer.setData('source', 'deck'); });
+        deckPile.addEventListener('touchstart', (e) => {
+            if (gameState.turnOrder[gameState.currentTurnIndex] === 'user' && !gameState.hasDrawn) {
+                gameState.touch.sourceType = 'deck';
+                createPhantom(deckPile);
+            }
+        }, { passive: false });
+        window.addEventListener('touchmove', (e) => {
+            if (gameState.touch.phantom) {
+                const t = e.touches[0];
+                gameState.touch.phantom.style.left = (t.clientX - 16) + 'px';
+                gameState.touch.phantom.style.top = (t.clientY - 24) + 'px';
+                e.preventDefault();
+            }
+        }, { passive: false });
+        window.addEventListener('touchend', handleTouchEnd);
+    }
+
+    // Atma Alanları
+    document.querySelectorAll('.discard-zone').forEach(zone => {
+        const getPID = (z) => z.id.replace('discard-', '').replace('bot-', 'bot');
+        const expand = () => { zone.classList.add('expanded'); renderDiscardZone(getPID(zone)); };
+        const collapse = () => { zone.classList.remove('expanded'); renderDiscardZone(getPID(zone)); };
+        zone.onmousedown = zone.ontouchstart = (e) => { e.preventDefault(); expand(); };
+        zone.onmouseup = zone.onmouseleave = zone.ontouchend = zone.ontouchcancel = () => collapse();
+        zone.ondragover = (e) => { e.preventDefault(); zone.classList.add('drag-over'); };
+        zone.ondragleave = () => zone.classList.remove('drag-over');
+        zone.ondrop = (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+            const id = e.dataTransfer.getData('tileId');
+            if (id && zone.id === 'discard-user') processUserDiscard(id);
+        };
+    });
+
+    // Başlangıç
+    initGame();
+});
