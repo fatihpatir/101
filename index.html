@@ -31,16 +31,20 @@
         </header>
 
         <div class="table">
-            <!-- Atılan Taş Alanları (Boşluklar) -->
-            <div class="discard-zone bottom-right" id="discard-user"></div>
-            <div class="discard-zone top-right" id="discard-bot-3"></div>
-            <div class="discard-zone top-left" id="discard-bot-2"></div>
-            <div class="discard-zone bottom-left" id="discard-bot-1"></div>
+            <!-- Atılan Taş Alanları (Boşluklar) - Sabit Yerleşimler için DOM'da Taşındı -->
 
             <!-- Bot-2 (Karşı) -->
             <div class="player-slot top" id="bot-2">
-                <div class="bot-rack bot-rack-top">
-                    <div class="name-tag">Deniz</div>
+                <div class="bot-rack-container">
+                    <!-- Bot 3'ten TAŞ AL -->
+                    <div class="discard-zone side-slot left-take" id="discard-bot-3"></div>
+
+                    <div class="bot-rack bot-rack-top">
+                        <div class="name-tag">Deniz</div>
+                    </div>
+
+                    <!-- Kendi Taşını AT (Bot 1'e) -->
+                    <div class="discard-zone side-slot right-discard" id="discard-bot-2"></div>
                 </div>
             </div>
 
@@ -108,17 +112,27 @@
 
                         <!-- El İstatistikleri -->
                         <div class="hand-stats">
-                            <div class="stat-item"><span class="stat-label">PUAN:</span> <span id="hand-points">0</span></div>
-                            <div class="stat-item"><span class="stat-label">ÇİFT:</span> <span id="hand-pairs">0</span></div>
+                            <div class="stat-item"><span class="stat-label">PUAN:</span> <span id="hand-points">0</span>
+                            </div>
+                            <div class="stat-item"><span class="stat-label">ÇİFT:</span> <span id="hand-pairs">0</span>
+                            </div>
                         </div>
                     </div>
 
 
-                    <div class="rack-wrapper">
-                        <div class="rack-grid">
-                            <div class="rack-row" id="row-1"></div>
-                            <div class="rack-row" id="row-2"></div>
+                    <div class="user-rack-container">
+                        <!-- TAŞ AL (Bot 1'den gelen) -->
+                        <div class="discard-zone side-slot left-take" id="discard-bot-1"></div>
+
+                        <div class="rack-wrapper">
+                            <div class="rack-grid">
+                                <div class="rack-row" id="row-1"></div>
+                                <div class="rack-row" id="row-2"></div>
+                            </div>
                         </div>
+
+                        <!-- TAŞ AT (Kendi atacağımız) -->
+                        <div class="discard-zone side-slot right-discard" id="discard-user"></div>
                     </div>
                 </div>
             </div>
