@@ -149,6 +149,22 @@ function shuffleDeck() {
 }
 
 function determineOkey() {
+    // Gösterge taşının Sahte Okey (Joker) olmamasını garanti et
+    let indicatorIdx = -1;
+    for (let i = gameState.deck.length - 1; i >= 0; i--) {
+        if (!gameState.deck[i].isJoker) {
+            indicatorIdx = i;
+            break;
+        }
+    }
+
+    // Eğer son taş Joker ise, rastgele bir gerçek taşla yer değiştir ve çek
+    if (indicatorIdx !== -1 && indicatorIdx !== gameState.deck.length - 1) {
+        const temp = gameState.deck[gameState.deck.length - 1];
+        gameState.deck[gameState.deck.length - 1] = gameState.deck[indicatorIdx];
+        gameState.deck[indicatorIdx] = temp;
+    }
+
     gameState.indicatorTile = gameState.deck.pop();
     let okeyNum = gameState.indicatorTile.number + 1;
     if (okeyNum > 13) okeyNum = 1;
@@ -1224,6 +1240,16 @@ function autoSortPairs() {
 
 // --- DOM LİSTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Otomatik Ekran Döndürme Denemesi (PWA Dostu)
+    const tryLockOrientation = () => {
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(err => {
+                console.log("Oryantasyon kilidi denendi (PWA/Tam ekran gerekli):", err.message);
+            });
+        }
+    };
+    tryLockOrientation();
+
     // Statik Butonlar
     const btnDraw = document.getElementById('btn-draw-stone');
     if (btnDraw) btnDraw.onclick = () => handleDraw(-1);
