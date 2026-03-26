@@ -203,7 +203,6 @@ function renderAll() {
     renderTable(); // Masaya açılanları göster
     updateDeckCount();
     updateTurnUI();
-    updateDebugConsole();
     updateHandPoints();
     renderAllDiscardZones(); // Tüm atılan taşları render et
 }
@@ -354,8 +353,10 @@ function openPairs() {
 
     // KURAL: Masada hiç çift açılmamışsa → 5 çift şartı aranır
     // Masada çift açılmışsa VE sen seri açmışsan → serbestçe çift inebilirsin
-    if (!pairsOpenedOnTable && !isAlreadyOpen) {
-        showGameMessage("Çift açmak için önce seri açmalısın.");
+    // KURAL: Eğer oyuncu henüz hiç açmamışsa hem seri (101) hem çift (5 çift) ile açabilir.
+    // Eğer biri zaten çift açmışsa ve biz seri açtıysak istediğimiz kadar çift ekleyebiliriz.
+    if (isAlreadyOpen && !pairsOpenedOnTable) {
+        showGameMessage("Çift eklemek için masada çift bölgesinin açılmış olması gerekir.");
         return;
     }
 
@@ -798,7 +799,6 @@ function nextTurn() {
     gameState.currentTurnIndex = (gameState.currentTurnIndex + 1) % 4;
     gameState.hasDrawn = false;
     updateTurnUI();
-    updateDebugConsole();
     renderAllDiscardZones(); // Çalınabilir taş durumunu güncelle
 
     const currentPlayerId = gameState.turnOrder[gameState.currentTurnIndex];
@@ -916,8 +916,13 @@ function attemptStealDiscard() {
         totalPts += evaluateCluster(g).points;
     });
 
-    if (totalPts < 101) {
-        showGameMessage(`Bu taş (${tile.number}) ile ${totalPts} puan olur, 101 yapamıyorsun.`);
+    const totalPairs = hypotheticalGroups.pairs.length;
+    const canOpenWith101 = totalPts >= 101;
+    const canOpenWith5Pairs = totalPairs >= 5;
+
+    if (!canOpenWith101 && !canOpenWith5Pairs) {
+        let msg = `Bu taş (${tile.number}) ile ne 101 puan (${totalPts}) ne de 5 çift (${totalPairs}) yapabiliyorsun.`;
+        showGameMessage(msg);
         return;
     }
 
@@ -1066,19 +1071,7 @@ function showGameMessage(msg) {
     setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 500); }, 2500);
 }
 
-function updateDebugConsole() {
-    let el = document.getElementById('debug-console');
-    if (!el) {
-        el = document.createElement('div');
-        el.id = 'debug-console';
-        document.body.appendChild(el);
-    }
-    el.innerHTML = `
-        TURN: ${gameState.turnOrder[gameState.currentTurnIndex]}<br>
-        HAS_DRAWN: ${gameState.hasDrawn}<br>
-        DECK: ${gameState.deck.length}
-    `;
-}
+// Debug console removed
 
 function logDebug(msg) { console.log("[101]", msg); }
 

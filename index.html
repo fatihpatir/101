@@ -24,9 +24,9 @@
         <header class="top-nav">
             <div class="logo">OKEY 101</div>
             <div class="nav-actions">
-                <button class="nav-btn" id="new-game-top">YENİ OYUN</button>
-                <button class="nav-btn" id="show-yazboz">YAZ-BOZ</button>
-                <button class="nav-btn" id="open-settings">AYARLAR</button>
+                <button class="nav-btn" id="new-game-top"><span>🔄</span> YENİ OYUN</button>
+                <button class="nav-btn" id="show-yazboz"><span>📝</span> YAZ-BOZ</button>
+                <button class="nav-btn" id="open-settings"><span>⚙️</span> AYARLAR</button>
             </div>
         </header>
 
@@ -85,7 +85,8 @@
 
                 <!-- Deste ve Gösterge Bölümü (Bağımsız ve Üst Katmanda) -->
                 <div class="center-deck-area">
-                    <div class="deck-pile" id="deck-pile">
+                    <div class="deck-pile-wrap">
+                        <div class="deck-pile" id="deck-pile"></div>
                         <div class="deck-count">20</div>
                     </div>
                     <div class="indicator-tile" id="indicator-tile">

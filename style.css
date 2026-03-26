@@ -23,21 +23,17 @@ body {
 /* Üst Navbar (Şeffaf mod, masanın üstünde yüzer) */
 .top-nav {
     position: absolute;
-    top: 10px;
+    top: 5px;
     left: 0;
     width: 100%;
-    height: 40px;
+    height: 32px;
     background: transparent;
-    /* Siyah bar kaldırıldı */
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 30px;
-    border: none;
-    /* Alt çizgi kaldırıldı */
+    padding: 0 15px;
     z-index: 1000;
     pointer-events: none;
-    /* Barın kendisi tıklamayı engellemesin */
 }
 
 .logo,
@@ -48,8 +44,9 @@ body {
 
 .logo {
     font-family: 'Permanent Marker', cursive;
-    font-size: 1.2rem;
-    color: #ffd700;
+    font-size: 1rem;
+    color: rgba(255, 215, 0, 0.4);
+    letter-spacing: 1px;
 }
 
 .pro-badge {
@@ -63,27 +60,34 @@ body {
 
 .nav-actions {
     display: flex;
-    gap: 10px;
+    gap: 6px;
 }
 
 .nav-btn {
-    background: rgba(0, 0, 0, 0.6);
-    /* Daha görünür olması için hafif koyu transparan */
-    border: 1px solid rgba(255, 215, 0, 0.5);
-    color: #ffd700;
-    padding: 6px 16px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 700;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    color: rgba(255, 215, 0, 0.8);
+    padding: 4px 12px;
+    border-radius: 20px;
+    /* Pill shape */
+    font-size: 0.65rem;
+    font-weight: 800;
     cursor: pointer;
-    transition: all 0.2s;
-    backdrop-filter: blur(3px);
-    /* Şık bir cam efekti */
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(8px);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .nav-btn:hover {
     background: #ffd700;
     color: #000;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
+    border-color: #ffd700;
 }
 
 #game-container {
@@ -101,8 +105,8 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 10px;
-    padding-top: 55px;
+    padding: 2px;
+    padding-top: 50px;
     /* Navbar payı */
     border: 12px solid #3e2723;
     box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.5);
@@ -118,16 +122,16 @@ body {
 
 /* Karşı Oyuncu (Üst) */
 .player-slot.top {
-    top: 15px;
+    top: 5px;
     left: 50%;
     transform: translateX(-50%);
     flex-direction: column;
-    gap: 10px;
+    gap: 5px;
 }
 
 /* Sol Oyuncu */
 .player-slot.left {
-    left: max(15px, env(safe-area-inset-left));
+    left: env(safe-area-inset-left, 5px);
     top: 50%;
     transform: translateY(-50%);
     flex-direction: row;
@@ -136,7 +140,7 @@ body {
 
 /* Sağ Oyuncu */
 .player-slot.right {
-    right: max(15px, env(safe-area-inset-right));
+    right: env(safe-area-inset-right, 5px);
     top: 50%;
     transform: translateY(-50%);
     flex-direction: row;
@@ -417,7 +421,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: 10px;
+    margin-top: 2px;
 }
 
 /* Kullanıcı ve Bot 2 Konteynerları */
@@ -499,21 +503,30 @@ body {
     z-index: 2100;
 }
 
+.deck-pile-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    /* Biraz daha mesafe */
+}
+
 .deck-count {
     pointer-events: none;
-    /* Sayı tıklamayı engellemesin, taşın tamamı tıklanabilir kalsın */
     font-family: 'Outfit', sans-serif;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 800;
-    color: #1e3a8a;
-    background: rgba(255, 255, 255, 0.9);
-    width: 26px;
-    height: 26px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    border: 2px solid #1e3a8a;
+    color: #ffd700;
+    /* Altın rengi yapalım, masada parlasın */
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    opacity: 0.8;
+}
+
+.deck-count::after {
+    content: ' TAŞ';
+    font-size: 0.65rem;
+    margin-left: 3px;
 }
 
 /* Gösterge Taşı */
@@ -566,9 +579,9 @@ body {
     top: 38%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 72%;
-    /* Yanlardaki botlara daha fazla yer açmak için daraltıldı */
-    height: 52%;
+    width: 86%;
+    /* Yanlardaki botlara daha fazla yer açmak için daraltıldı -> Geri genişletildi */
+    height: 60%;
     z-index: 5;
     display: flex;
     gap: 0;
