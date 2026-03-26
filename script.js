@@ -217,35 +217,71 @@ function renderTable() {
     if (!gameState.table || !gameState.table.user) return;
 
     // Kullanıcının açtığı her grubu masadaki ilgili alana koy
-    gameState.table.user.forEach((group, groupIdx) => {
-        const groupEl = document.createElement('div');
-        groupEl.className = 'table-group';
-        groupEl.dataset.index = groupIdx;
-        groupEl.dataset.owner = 'user';
+    const owners = ['user', 'bots'];
+    owners.forEach(owner => {
+        const groups = (owner === 'user' ? gameState.table.user : gameState.table.bots) || [];
+        groups.forEach((group, groupIdx) => {
+            const groupEl = document.createElement('div');
+            groupEl.className = 'table-group';
+            groupEl.dataset.index = groupIdx;
+            groupEl.dataset.owner = owner;
 
-        // İşleme hedefi olarak dinle
-        groupEl.ondragover = (e) => { e.preventDefault(); groupEl.classList.add('drag-over'); };
-        groupEl.ondragleave = () => groupEl.classList.remove('drag-over');
-        groupEl.ondrop = (e) => {
-            e.preventDefault();
-            groupEl.classList.remove('drag-over');
-            const tileId = e.dataTransfer.getData('tileId');
-            if (tileId) handleProcessTile(tileId, groupIdx, 'user');
-        };
+            const isRun = getRunPoints(group) > 0;
+            const isSet = getSetPoints(group) > 0;
 
-        group.forEach(tile => {
-            const tEl = tile.createHTMLElement(true);
-            tEl.classList.add('table-tile');
-            groupEl.appendChild(tEl);
+            // Başlangıç işleme kutusu (Sadece kullanıcı taş işleyebilir, veya botlar otomatik işler)
+            // Biz şimdilik görsel olarak hep koyalım
+            if (isRun) {
+                const preSlot = createProcessSlot(groupIdx, owner, 'start');
+                groupEl.appendChild(preSlot);
+            }
+
+            group.forEach(tile => {
+                const tEl = tile.createHTMLElement(true);
+                tEl.classList.add('table-tile');
+                groupEl.appendChild(tEl);
+            });
+
+            // Bitiş işleme kutusu
+            if (isRun || (isSet && group.length < 4)) {
+                const postSlot = createProcessSlot(groupIdx, owner, 'end');
+                groupEl.appendChild(postSlot);
+            }
+
+            if ((group.length === 2 || (isSet && group.length === 2)) && pairsField) {
+                pairsField.appendChild(groupEl);
+            } else if (seriesField) {
+                seriesField.appendChild(groupEl);
+            }
         });
-
-        // 101 KURALI: 2 taşlı olanlar çifttir, 3+ taşlılar seridir
-        if (group.length === 2 && pairsField) {
-            pairsField.appendChild(groupEl);
-        } else if (seriesField) {
-            seriesField.appendChild(groupEl);
-        }
     });
+}
+
+function createProcessSlot(groupIdx, owner, pos) {
+    const slot = document.createElement('div');
+    slot.className = 'process-slot';
+    slot.innerHTML = '+';
+
+    slot.ondragover = (e) => { e.preventDefault(); slot.classList.add('drag-over'); };
+    slot.ondragleave = () => slot.classList.remove('drag-over');
+    slot.ondrop = (e) => {
+        e.preventDefault();
+        slot.classList.remove('drag-over');
+        const tileId = e.dataTransfer.getData('tileId');
+        if (tileId) handleProcessTile(tileId, groupIdx, owner);
+    };
+
+    // Tıklama ile işleme (Eğer bir taş seçiliyse)
+    slot.onclick = () => {
+        if (gameState.selectedTileIds.size === 1) {
+            const tileId = [...gameState.selectedTileIds][0];
+            handleProcessTile(tileId, groupIdx, owner);
+        } else {
+            showGameMessage("İşlemek için önce ıstakadan bir taş seç!");
+        }
+    };
+
+    return slot;
 }
 
 function updateHandPoints() {
@@ -289,6 +325,10 @@ function updateHandPoints() {
 }
 
 function openSeries() {
+    if (!gameState.hasDrawn) {
+        showGameMessage("Önce taş çekmelisin kral!");
+        return;
+    }
     const isAlreadyOpen = gameState.players.user.hasOpened;
     const scoreVal = parseInt(document.getElementById('hand-points').innerText) || 0;
 
@@ -348,6 +388,10 @@ function openSeries() {
 }
 
 function openPairs() {
+    if (!gameState.hasDrawn) {
+        showGameMessage("Önce taş çekmelisin kral!");
+        return;
+    }
     const isAlreadyOpen = gameState.players.user.hasOpened;
     const pairsOpenedOnTable = gameState.pairsOpened;
 
@@ -373,7 +417,7 @@ function openPairs() {
         } else {
             if (currentCluster.length === 2) {
                 const [t1, t2] = currentCluster;
-                if (t1.number === t2.number && t1.color === t2.color && !isWildCard(t1) && !isWildCard(t2)) {
+                if ((t1.number === t2.number && t1.color === t2.color) || isWildCard(t1) || isWildCard(t2)) {
                     openedPairs.push([...currentCluster]);
                     totalPairs++;
                 } else {
@@ -388,7 +432,7 @@ function openPairs() {
     // Son küme
     if (currentCluster.length === 2) {
         const [t1, t2] = currentCluster;
-        if (t1.number === t2.number && t1.color === t2.color && !isWildCard(t1) && !isWildCard(t2)) {
+        if ((t1.number === t2.number && t1.color === t2.color) || isWildCard(t1) || isWildCard(t2)) {
             openedPairs.push([...currentCluster]); totalPairs++;
         } else {
             slotsToClear = slotsToClear.slice(0, slotsToClear.length - 2);
@@ -503,7 +547,7 @@ function evaluateCluster(tiles) {
         }
     } else if (tiles.length === 2) {
         const [t1, t2] = tiles;
-        if (t1.number === t2.number && t1.color === t2.color && !isWildCard(t1) && !isWildCard(t2)) {
+        if ((t1.number === t2.number && t1.color === t2.color) || isWildCard(t1) || isWildCard(t2)) {
             pairs = 1;
         }
     }
@@ -730,16 +774,26 @@ function updateDeckCount() {
 }
 
 function updateTurnUI() {
-    // Aktif oyuncu vurgusu
-    document.querySelectorAll('.player-slot, #player-user').forEach(el => el.classList.remove('active-turn'));
-    const currentPlayerId = gameState.turnOrder[gameState.currentTurnIndex];
-    const activeEl = currentPlayerId === 'user' ? document.getElementById('player-user') : document.getElementById(currentPlayerId.replace('bot', 'bot-'));
-    if (activeEl) activeEl.classList.add('active-turn');
+    const turnOrder = gameState.turnOrder;
+    const currentId = turnOrder[gameState.currentTurnIndex];
 
+    // Tüm name-tag'leri temizle
+    document.querySelectorAll('.name-tag').forEach(tag => {
+        tag.classList.remove('active-turn');
+    });
+
+    // Aktif olanı vurgula
+    const playerSlot = document.getElementById(currentId === 'user' ? 'player-user' : currentId);
+    if (playerSlot) {
+        const tag = playerSlot.querySelector('.name-tag');
+        if (tag) tag.classList.add('active-turn');
+    }
+
+    // Sıra kullanıcıdaysa butonları aktive et, değilse deaktif et (Opsiyonel)
     // Deste parlaması
     const deckPile = document.getElementById('deck-pile');
     if (deckPile) {
-        if (currentPlayerId === 'user' && !gameState.hasDrawn) deckPile.classList.add('your-turn-pulse');
+        if (currentId === 'user' && !gameState.hasDrawn) deckPile.classList.add('your-turn-pulse');
         else deckPile.classList.remove('your-turn-pulse');
     }
 }
@@ -809,35 +863,107 @@ function nextTurn() {
 
 async function botPlay() {
     const botId = gameState.turnOrder[gameState.currentTurnIndex];
+    const bot = gameState.players[botId];
 
-    // Çek
-    if (gameState.players[botId].hand.length < 22 && gameState.deck.length > 0) {
-        gameState.players[botId].hand.push(gameState.deck.pop());
+    // 1. Çekme Kararı (Şimdilik hep desteden çeksin, çalma mantığı sonra eklenecek)
+    if (bot.hand.length < 22 && gameState.deck.length > 0) {
+        bot.hand.push(gameState.deck.pop());
         updateDeckCount();
+    }
+
+    await new Promise(r => setTimeout(r, 800));
+
+    // 2. Eli Değerlendir
+    let { complete, pairs, potential, leftovers } = findGroups(bot.hand);
+
+    // 3. El Açma Mantığı
+    if (!bot.hasOpened) {
+        let totalPts = complete.reduce((sum, g) => sum + evaluateCluster(g).points, 0);
+        let totalPairs = pairs.length;
+
+        if (totalPts >= 101) {
+            // Seri Aç
+            complete.forEach(group => {
+                if (!gameState.table.bots) gameState.table.bots = [];
+                gameState.table.bots.push(group);
+                // Hand'den sil
+                group.forEach(t => removeTileFromList(bot.hand, t));
+            });
+            bot.hasOpened = true;
+            showGameMessage(`${bot.name} seriden açtı! 🚀`);
+        } else if (totalPairs >= 5 && !gameState.pairsOpened) {
+            // Çift Aç
+            pairs.forEach(pair => {
+                if (!gameState.table.bots) gameState.table.bots = [];
+                gameState.table.bots.push(pair);
+                pair.forEach(t => removeTileFromList(bot.hand, t));
+            });
+            bot.hasOpened = true;
+            gameState.pairsOpened = true;
+            showGameMessage(`${bot.name} çiftten açtı! 🔥`);
+        }
+    }
+
+    // 4. İşleme Mantığı (Eğer açmışsa veya başkası açmışsa - Basitleştirilmiş)
+    if (bot.hasOpened) {
+        botProcessTiles(botId);
     }
 
     await new Promise(r => setTimeout(r, 600));
 
-    // At
-    if (gameState.players[botId].hand.length > 0) {
-        const idx = Math.floor(Math.random() * gameState.players[botId].hand.length);
-        const tile = gameState.players[botId].hand.splice(idx, 1)[0];
-        renderDiscard(botId, tile);
+    // 5. Taş Atma (En gereksiz taşı bul)
+    // Değerlendirme sonucu en sonda kalan leftovers'tan en büyük olanı at
+    if (bot.hand.length > 0) {
+        let tileToDiscard;
+        if (leftovers.length > 0) {
+            // Leftovers içindeki en büyük rakamı bul (Okey hariç)
+            const nonOkeyLeftovers = leftovers.filter(t => !isWildCard(t));
+            if (nonOkeyLeftovers.length > 0) {
+                tileToDiscard = nonOkeyLeftovers.sort((a, b) => b.number - a.number)[0];
+            } else {
+                tileToDiscard = leftovers[0];
+            }
+        } else {
+            tileToDiscard = bot.hand[0];
+        }
+
+        // Hand'den çıkar ve at
+        const idx = bot.hand.findIndex(t => t.id === tileToDiscard.id);
+        if (idx !== -1) bot.hand.splice(idx, 1);
+        renderDiscard(botId, tileToDiscard);
     }
 
+    renderAll();
     nextTurn();
+}
+
+function botProcessTiles(botId) {
+    const bot = gameState.players[botId];
+    // Masadaki tüm açılmış grupları tara (User + Bots)
+    const owners = ['user', 'bots'];
+
+    owners.forEach(owner => {
+        const tableGroups = (owner === 'user' ? gameState.table.user : gameState.table.bots) || [];
+        tableGroups.forEach((group, gIdx) => {
+            // Elimizdeki her boşta kalan (leftover) taşı deniyoruz
+            bot.hand.forEach((tile, tIdx) => {
+                if (isValidAddition(tile, group)) {
+                    group.push(tile);
+                    if (getRunPoints(group) > 0) group.sort((a, b) => a.number - b.number);
+                    bot.hand.splice(tIdx, 1);
+                    logDebug(`${bot.name} masaya taş işledi.`);
+                }
+            });
+        });
+    });
 }
 
 function renderDiscard(playerId, tile) {
     if (!gameState.discards[playerId]) gameState.discards[playerId] = [];
     gameState.discards[playerId].push(tile);
 
-    // Sol oyuncunun attığı taş çalınabilir olarak işaretle
-    if (playerId !== 'user') {
-        gameState.lastDiscard = { tile, playerId };
-    } else {
-        gameState.lastDiscard = null; // Kullanıcı attıysa, çalınabilir taş yok
-    }
+    // Her atılan taş çalınabilir adaydır (sıradaki oyuncu için)
+    gameState.lastDiscard = { tile, playerId };
 
     renderDiscardZone(playerId);
 }
@@ -910,13 +1036,14 @@ function attemptStealDiscard() {
     const hypotheticalHand = [...gameState.players.user.hand, tile];
     const hypotheticalGroups = findGroups(hypotheticalHand);
 
-    // Tüm grupların puanını hesapla
+    // Seri Puanı Hesapla
     let totalPts = 0;
     [...hypotheticalGroups.complete].forEach(g => {
         totalPts += evaluateCluster(g).points;
     });
 
-    const totalPairs = hypotheticalGroups.pairs.length;
+    // Çift Sayısı Hesapla (Özel Fonksiyonla)
+    const totalPairs = countPossiblePairs(hypotheticalHand);
     const canOpenWith101 = totalPts >= 101;
     const canOpenWith5Pairs = totalPairs >= 5;
 
@@ -1154,6 +1281,54 @@ function findGroups(hand) {
     return result;
 }
 
+function countPossiblePairs(hand) {
+    let tiles = [...hand];
+    let pairs = 0;
+    let okeys = [];
+
+    // 1. Okeyleri Ayır
+    for (let i = 0; i < tiles.length; i++) {
+        if (isWildCard(tiles[i])) {
+            okeys.push(tiles.splice(i, 1)[0]);
+            i--;
+        }
+    }
+
+    // 2. Doğal Çiftleri Bul
+    let counts = {};
+    tiles.forEach(t => {
+        let key = `${t.number}_${t.color}`;
+        if (!counts[key]) counts[key] = [];
+        counts[key].push(t);
+    });
+
+    let leftovers = [];
+    Object.keys(counts).forEach(key => {
+        let list = counts[key];
+        while (list.length >= 2) {
+            pairs++;
+            list.pop(); list.pop();
+        }
+        if (list.length === 1) leftovers.push(list[0]);
+    });
+
+    // 3. Okeyleri Kalanlarla veya Birbirleriyle Çiftle
+    while (okeys.length > 0) {
+        if (leftovers.length > 0) {
+            pairs++;
+            okeys.pop();
+            leftovers.pop();
+        } else if (okeys.length >= 2) {
+            pairs++;
+            okeys.pop(); okeys.pop();
+        } else {
+            break;
+        }
+    }
+
+    return pairs;
+}
+
 // YARDIMCI FOKSİYONLAR
 function removeTileFromList(list, tile) {
     const idx = list.findIndex(t => t.id === tile.id);
@@ -1242,6 +1417,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     tryLockOrientation();
+    window.addEventListener('resize', tryLockOrientation); // Ekran değişiminde tekrar dene
 
     // Statik Butonlar
     const btnDraw = document.getElementById('btn-draw-stone');

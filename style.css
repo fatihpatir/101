@@ -122,16 +122,17 @@ body {
 
 /* Karşı Oyuncu (Üst) */
 .player-slot.top {
-    top: 5px;
+    top: 2px;
     left: 50%;
     transform: translateX(-50%);
     flex-direction: column;
-    gap: 5px;
+    gap: 2px;
 }
 
 /* Sol Oyuncu */
 .player-slot.left {
-    left: env(safe-area-inset-left, 5px);
+    left: 2px;
+    /* iOS Safe area yok sayıldı */
     top: 50%;
     transform: translateY(-50%);
     flex-direction: row;
@@ -140,7 +141,8 @@ body {
 
 /* Sağ Oyuncu */
 .player-slot.right {
-    right: env(safe-area-inset-right, 5px);
+    right: 2px;
+    /* iOS Safe area yok sayıldı */
     top: 50%;
     transform: translateY(-50%);
     flex-direction: row;
@@ -400,9 +402,15 @@ body {
     flex-shrink: 0;
     margin: 0 8px;
     background: linear-gradient(145deg, #3d2b1f, #2a1d15);
-    /* Ahşap dokusu */
     border: 2px solid #5d4037;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.1);
+    position: relative;
+    /* İÇİNDEKİ TAŞLARIN ABSOLUTE DURMASI İÇİN ŞART */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    /* Taşlar dışarı taşabilsin */
 }
 
 .left-take {
@@ -579,11 +587,13 @@ body {
     top: 38%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 86%;
-    /* Yanlardaki botlara daha fazla yer açmak için daraltıldı -> Geri genişletildi */
+    width: 96%;
+    /* Masayı neredeyse tam genişlik yapalım */
     height: 60%;
     z-index: 5;
     display: flex;
+    flex-direction: column;
+    /* Alt alta diz: Seri üstte, Çift altta */
     gap: 0;
     background: rgba(255, 255, 255, 0.03);
     border: 2px solid rgba(255, 255, 255, 0.05);
@@ -593,23 +603,24 @@ body {
 
 /* Her Bir Bölüm */
 .play-section {
-    height: 100%;
+    height: auto;
     display: flex;
     flex-direction: column;
     position: relative;
-    padding: 10px;
+    padding: 4px 10px;
+    /* Üst-alt padding düşürüldü */
 }
 
 #series-section {
-    flex: 7;
-    /* %70 alan */
+    flex: 6.5;
+    /* %65 alan serilere */
 }
 
 #pairs-section {
-    flex: 3;
-    /* %30 alan */
-    background: rgba(0, 0, 0, 0.1);
-    /* Çiftleri hafifçe ayırıyoruz */
+    flex: 3.5;
+    /* %35 alan çiftlere */
+    background: rgba(0, 0, 0, 0.15);
+    /* Çiftleri belirginleştirelim */
 }
 
 /* Başlık Etiketleri */
@@ -628,26 +639,86 @@ body {
 .field-area {
     flex-grow: 1;
     position: relative;
-    padding: 10px;
+    padding: 5px;
+    /* Daha fazla yer için padding kısıldı */
     display: flex;
     flex-wrap: wrap;
     align-content: flex-start;
+    overflow-y: auto;
+    /* Akıllı kaydırma */
+    scrollbar-width: none;
+    /* Firefox için barı gizle */
+    -ms-overflow-style: none;
+    /* IE için barı gizle */
+    scroll-behavior: smooth;
+    gap: 8px 12px;
+}
+
+.table-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    margin: 5px;
+    transition: all 0.3s ease;
+}
+
+.process-slot {
+    width: 14px;
+    height: 24px;
+    border: 1.5px dashed rgba(255, 215, 0, 0.2);
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 215, 0, 0.3);
+    font-size: 0.8rem;
+    font-weight: 800;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    background: rgba(255, 215, 0, 0.02);
+}
+
+.process-slot:hover,
+.process-slot.drag-over {
+    background: rgba(255, 215, 0, 0.15);
+    border-color: #ffd700;
+    color: #ffd700;
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+/* Chrome/Safari için barı gizle ama kaydırmayı bırak */
+.field-area::-webkit-scrollbar {
+    display: none;
 }
 
 /* Seri Alanındaki Taşları İyice Küçültelim (Sıkıştırma) */
 #series-field .tile {
-    width: 22px;
-    height: 33px;
+    width: 17px;
+    /* Eskiden 22 idi, iyice küçültüldü */
+    height: 26px;
     border-radius: 2px;
 }
 
 #series-field .tile span {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
 }
 
 #series-field .tile .dot {
-    width: 2px;
-    height: 2px;
+    width: 1.5px;
+    height: 1.5px;
+}
+
+#series-field {
+    gap: 15px 12px;
+}
+
+#pairs-field {
+    gap: 12px 12px;
 }
 
 #series-field {
@@ -809,37 +880,36 @@ body.dragging-mode .pair-group::after {
 
 /* Çiftler Alanındaki Taşları Küçültelim (Sıkıştırma) */
 #pairs-field .tile {
-    width: 22px;
-    height: 33px;
+    width: 17px;
+    height: 26px;
     border-radius: 2px;
 }
 
 #pairs-field .tile span {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
 }
 
 #pairs-field .tile .dot {
-    width: 2px;
-    height: 2px;
+    width: 1.5px;
+    height: 1.5px;
 }
 
 #pairs-field {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 4px 2px;
+    gap: 3px 2px;
     align-content: flex-start;
     justify-content: center;
     overflow: hidden;
-    /* Kaydırma çubuğunu kaldırdık */
-    padding: 5px;
+    padding: 3px;
 }
 
-/* Ayırıcı Altın Şerit */
+/* Ayırıcı Altın Şerit (Yatay) */
 .section-divider {
-    width: 2px;
-    height: 100%;
-    background: linear-gradient(to bottom,
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(to right,
             transparent,
             rgba(212, 175, 55, 0.4),
             rgba(212, 175, 55, 0.4),
@@ -1256,12 +1326,14 @@ body.dragging-mode .pair-group::after {
 }
 
 /* Mobile Landscape (Most Phones) */
-@media (max-width: 900px) and (orientation: landscape) {
+@media (max-width: 940px) and (orientation: landscape) {
     .center-grid-container {
-        width: 65%;
-        /* Mobilde orta alanı daha da daralt ki sağa taşmasın */
-        height: 50%;
-        top: 40%;
+        width: 96%;
+        /* Maksimum genişlik */
+        height: 65%;
+        /* Daha fazla boydan alan */
+        top: 38%;
+        z-index: 5;
     }
 
     .bot-rack-top {
@@ -1337,8 +1409,8 @@ body.dragging-mode .pair-group::after {
 /* Small Mobile Landscape */
 @media (max-width: 700px) and (orientation: landscape) {
     .center-grid-container {
-        width: 65%;
-        height: 45%;
+        width: 98%;
+        height: 70%;
     }
 
     .bot-rack-top {
@@ -1543,9 +1615,68 @@ body.dragging-mode .pair-group::after {
 /* Dokunmatik Geri Bildirim: Butonlara basılınca parlama */
 .action-rect:active,
 .nav-btn:active {
-    filter: brightness(1.5);
-    transform: translateY(2px) scale(0.95);
-    box-shadow: 0 0 15px currentColor;
+    filter: brightness(1.2);
+    transform: translateY(1px) scale(0.98);
+}
+
+/* --- GOLD OKEY SHIMMER --- */
+.tile.is-okey .tile-face.front {
+    background: linear-gradient(135deg, #fff 0%, #fff7d1 50%, #fff 100%) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.tile.is-okey .tile-face.front::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(to right,
+            rgba(255, 215, 0, 0) 0%,
+            rgba(255, 215, 0, 0.4) 50%,
+            rgba(255, 215, 0, 0) 100%);
+    transform: rotate(30deg);
+    animation: okey-shimmer 3s infinite linear;
+    pointer-events: none;
+}
+
+@keyframes okey-shimmer {
+    0% {
+        transform: translateX(-100%) rotate(30deg);
+    }
+
+    100% {
+        transform: translateX(100%) rotate(30deg);
+    }
+}
+
+/* --- TURN INDICATOR PULSE --- */
+.name-tag.active-turn {
+    background: #ffd700 !important;
+    color: #1a4d2e !important;
+    box-shadow: 0 0 15px #ffd700, 0 0 5px rgba(255, 215, 0, 0.5);
+    animation: turn-pulse 1.5s infinite ease-in-out;
+    border: 1px solid #fff;
+    transform: scale(1.1);
+}
+
+@keyframes turn-pulse {
+    0% {
+        box-shadow: 0 0 5px #ffd700;
+        transform: scale(1.1);
+    }
+
+    50% {
+        box-shadow: 0 0 20px #ffd700, 0 0 10px rgba(255, 215, 0, 0.8);
+        transform: scale(1.15);
+    }
+
+    100% {
+        box-shadow: 0 0 5px #ffd700;
+        transform: scale(1.1);
+    }
 }
 
 /* Atma Alanı Hit-Box Genişletme (Görünmez Katman) */
@@ -1841,4 +1972,27 @@ body.dragging-mode .discard-zone#discard-user {
     font-size: 0.75rem;
     color: rgba(255, 255, 255, 0.4);
     text-align: center;
+}
+
+/* --- YATAY MOD ZORUNLULUĞU (LANDSCAPE ONLY) --- */
+@media screen and (orientation: portrait) {
+    #game-container::before {
+        content: '🔄 Lütfen cihazınızı yatay çevirin!';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #1a4d2e;
+        color: #ffd700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 800;
+        z-index: 999999;
+        text-align: center;
+        padding: 40px;
+    }
 }

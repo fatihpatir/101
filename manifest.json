@@ -4,9 +4,9 @@
   "description": "Premium 101 Okey Oyunu",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#1a4d2e",
-  "theme_color": "#1a4d2e",
   "orientation": "landscape",
+  "theme_color": "#1a4d2e",
+  "background_color": "#1a4d2e",
   "icons": [
     {
       "src": "icon-192.png",
