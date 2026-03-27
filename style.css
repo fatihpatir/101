@@ -105,9 +105,8 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 2px;
-    padding-top: 50px;
-    /* Navbar payı */
+    padding: env(safe-area-inset-top, 2px) env(safe-area-inset-right, 2px) env(safe-area-inset-bottom, 2px) env(safe-area-inset-left, 2px);
+    padding-top: calc(50px + env(safe-area-inset-top, 0px)); /* Navbar + Safe Top */
     border: 12px solid #3e2723;
     box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.5);
 }
@@ -301,21 +300,33 @@ body {
     display: inline-flex;
     gap: 1px;
     background: rgba(255, 255, 255, 0.05);
-    padding: 3px;
+    padding: 2px;
     border-radius: 4px;
-    margin-right: 12px;
-    /* Perler arası net mesafe */
+    margin-right: 8px;
     border: 1px solid rgba(255, 215, 0, 0.1);
-    height: 40px;
+    height: 30px; /* Boyut düşürüldü */
     align-items: center;
 }
 
 .table-tile {
-    width: 24px !important;
-    height: 36px !important;
-    min-width: 24px;
+    width: 13px !important;
+    height: 20px !important;
+    min-width: 13px;
     border-radius: 2px !important;
-    font-size: 0.6rem !important;
+    font-size: 0.4rem !important;
+}
+
+#series-field .tile,
+#pairs-field .tile {
+    width: 13px !important;
+    height: 20px !important;
+    min-width: 13px;
+    border-radius: 2px !important;
+}
+#series-field .tile span,
+#pairs-field .tile span {
+    font-size: 0.65rem !important;
+    font-weight: 900;
 }
 
 .table-tile .tile-number {
@@ -588,12 +599,10 @@ body {
     left: 50%;
     transform: translate(-50%, -50%);
     width: 96%;
-    /* Masayı neredeyse tam genişlik yapalım */
     height: 60%;
     z-index: 5;
     display: flex;
-    flex-direction: column;
-    /* Alt alta diz: Seri üstte, Çift altta */
+    flex-direction: row; /* Yan yana dizilim */
     gap: 0;
     background: rgba(255, 255, 255, 0.03);
     border: 2px solid rgba(255, 255, 255, 0.05);
@@ -603,7 +612,7 @@ body {
 
 /* Her Bir Bölüm */
 .play-section {
-    height: auto;
+    height: 100%;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -612,15 +621,13 @@ body {
 }
 
 #series-section {
-    flex: 6.5;
-    /* %65 alan serilere */
+    flex: 0 0 82%;
+    border-right: 2px solid rgba(255, 255, 255, 0.05);
 }
 
 #pairs-section {
-    flex: 3.5;
-    /* %35 alan çiftlere */
-    background: rgba(0, 0, 0, 0.15);
-    /* Çiftleri belirginleştirelim */
+    flex: 0 0 18%;
+    background: rgba(0, 0, 0, 0.1);
 }
 
 /* Başlık Etiketleri */
@@ -640,18 +647,19 @@ body {
     flex-grow: 1;
     position: relative;
     padding: 5px;
-    /* Daha fazla yer için padding kısıldı */
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column; /* Alt alta dizilim */
+    flex-wrap: wrap; /* Yan sütuna geç */
     align-content: flex-start;
-    overflow-y: auto;
-    /* Akıllı kaydırma */
+    overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
-    /* Firefox için barı gizle */
     -ms-overflow-style: none;
-    /* IE için barı gizle */
-    scroll-behavior: smooth;
-    gap: 8px 12px;
+    gap: 6px;
+}
+
+.field-area::-webkit-scrollbar {
+    display: none;
 }
 
 .table-group {
@@ -664,6 +672,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.05);
     margin: 5px;
     transition: all 0.3s ease;
+    min-width: min-content; /* İçeriğe göre genişlesin */
 }
 
 .process-slot {
@@ -1976,23 +1985,33 @@ body.dragging-mode .discard-zone#discard-user {
 
 /* --- YATAY MOD ZORUNLULUĞU (LANDSCAPE ONLY) --- */
 @media screen and (orientation: portrait) {
-    #game-container::before {
-        content: '🔄 Lütfen cihazınızı yatay çevirin!';
+    #game-container {
+        width: 100dvh;
+        height: 100dvw;
+        transform: rotate(90deg);
+        transform-origin: center;
         position: fixed;
         top: 0;
         left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: #1a4d2e;
-        color: #ffd700;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: 'Outfit', sans-serif;
-        font-size: 1.5rem;
-        font-weight: 800;
-        z-index: 999999;
-        text-align: center;
-        padding: 40px;
+        width: 100vh;
+        height: 100vw;
+        transform: rotate(90deg) translateY(-100%);
+        transform-origin: top left;
     }
 }
+
+/* --- KRALIN YENİ STİLLERİ: AKTİF SIRA PARLAMASI --- */
+.active-turn {
+    animation: turn-glow-only 2s infinite ease-in-out !important;
+}
+
+#player-user.active-turn .rack-wrapper {
+    box-shadow: 0 0 40px #ffd700 !important;
+    outline: 3px solid #ffd700 !important;
+    border: none !important;
+}
+
+.player-slot.active-turn .bot-rack {
+    box-shadow: 0 0 30px #ffd700 !important;
+    border-color: #ffd700 !important;
+}
