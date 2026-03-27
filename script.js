@@ -131,6 +131,11 @@ function initGame() {
 
         renderAll();
         logDebug("Oyun Hazır!");
+
+        // Eğer ilk oynayan kişi bot ise döngüyü başlat
+        if (gameState.turnOrder[gameState.currentTurnIndex] !== 'user') {
+            setTimeout(botPlay, 1000);
+        }
     } catch (err) {
         alert("Başlatma Hatası: " + err.message);
     }
@@ -682,25 +687,82 @@ function getRunPoints(tiles) {
     return totalPoints;
 }
 
-function finishRound() {
+function finishRound(winnerId = null, lastDiscardedTile = null) {
     logDebug("EL BİTTİ. PUANLAR HESAPLANIYOR...");
+
+    let okeyDiscarded = (winnerId && lastDiscardedTile && isWildCard(lastDiscardedTile));
+    let isPairsFinish = winnerId ? (gameState.players[winnerId].openedType === 'pairs') : false;
+    
+    // Elden Bitme Kontrolü: Kazananın dışında hiç kimse el açmamışsa
+    let othersOpened = false;
+    if (winnerId) {
+        for (let p in gameState.players) {
+            if (p !== winnerId && gameState.players[p].hasOpened) {
+                othersOpened = true;
+                break;
+            }
+        }
+    }
+    let isEldenBitme = winnerId && !othersOpened;
+
+    let winnerDeduction = 0;
+    let otherMultiplier = 1;
+    let otherFlatPenalty = 0;
+
+    if (winnerId) {
+        if (isEldenBitme) {
+            if (okeyDiscarded) {
+                winnerDeduction = -1600;
+                otherFlatPenalty = 1600;
+            } else {
+                winnerDeduction = -808;
+                otherFlatPenalty = 808;
+            }
+        } else {
+            if (isPairsFinish && okeyDiscarded) {
+                winnerDeduction = -404;
+                otherMultiplier = 4;
+            } else if (isPairsFinish && !okeyDiscarded) {
+                winnerDeduction = -202;
+                otherMultiplier = 2;
+            } else if (!isPairsFinish && okeyDiscarded) {
+                winnerDeduction = -202;
+                otherMultiplier = 2;
+            } else {
+                winnerDeduction = -101;
+                otherMultiplier = 1;
+            }
+        }
+    }
 
     for (let pId in gameState.players) {
         const player = gameState.players[pId];
         let penalty = 0;
-        if (!player.hasOpened) {
-            penalty = 202;
+
+        if (pId === winnerId) {
+            penalty = winnerDeduction;
         } else {
-            const rackTiles = (pId === 'user')
-                ? gameState.userRackSlots.filter(t => t)
-                : player.hand;
-            penalty = rackTiles.reduce((sum, t) => sum + (t.number || 0), 0);
-            
-            // KURAL: Çiftten açanın cezası 2 katına katlanır
-            if (player.openedType === 'pairs') {
-                penalty *= 2;
+            if (isEldenBitme) {
+                penalty = otherFlatPenalty;
+            } else {
+                if (!player.hasOpened) {
+                    penalty = 202;
+                } else {
+                    const rackTiles = (pId === 'user')
+                        ? gameState.userRackSlots.filter(t => t)
+                        : player.hand;
+                    penalty = rackTiles.reduce((sum, t) => sum + (t.number || 0), 0);
+                    
+                    // KURAL: Çiftten açanın elindeki ceza 2 katına katlanır
+                    if (player.openedType === 'pairs') {
+                        penalty *= 2;
+                    }
+                }
+                // Kazananın bitiş şekline göre kalanlara çarpan eklenir (okey dışarı / çiftten bitme)
+                penalty *= otherMultiplier;
             }
         }
+
         player.score += penalty + (gameState.roundPenalties[pId] || 0);
         gameState.roundScores[pId].push(penalty + (gameState.roundPenalties[pId] || 0));
     }
@@ -954,6 +1016,12 @@ function processUserDiscard(tileId) {
 
     renderDiscard('user', tile);
     gameState.selectedTileIds.delete(tileId);
+
+    if (gameState.players.user.hand.length === 0) {
+        finishRound('user', tile);
+        return;
+    }
+
     nextTurn();
 }
 
@@ -1081,6 +1149,11 @@ async function botPlay() {
         const idx = bot.hand.findIndex(t => t.id === tileToDiscard.id);
         if (idx !== -1) bot.hand.splice(idx, 1);
         renderDiscard(botId, tileToDiscard);
+        
+        if (bot.hand.length === 0) {
+            finishRound(botId, tileToDiscard);
+            return;
+        }
     }
 
     renderAll();
@@ -1225,24 +1298,35 @@ function attemptStealDiscard() {
     const { tile, playerId } = gameState.lastDiscard;
 
     // Sınav: Bu taşla birlikte elimde 101 puan eder mi?
-    const hypotheticalHand = [...gameState.players.user.hand, tile];
-    const hypotheticalGroups = findGroups(hypotheticalHand);
+    const hasOpened = gameState.players.user.hasOpened;
+    let allowedToSteal = false;
 
-    // Seri Puanı Hesapla
-    let totalPts = 0;
-    [...hypotheticalGroups.complete].forEach(g => {
-        totalPts += evaluateCluster(g).points;
-    });
+    if (hasOpened) {
+        // Eğer zaten açmışsa, işine yarasın yaramasın (ceza yeme pahasina) taşı alabilir. 
+        // 101 Okey doğasına uygun olarak "elini açmış oyuncu taş çalabilir" kuralı işletilir.
+        allowedToSteal = true;
+    } else {
+        const hypotheticalHand = [...gameState.players.user.hand, tile];
+        const hypotheticalGroups = findGroups(hypotheticalHand);
 
-    // Çift Sayısı Hesapla (Özel Fonksiyonla)
-    const totalPairs = countPossiblePairs(hypotheticalHand);
-    const canOpenWith101 = totalPts >= 101;
-    const canOpenWith5Pairs = totalPairs >= 5;
+        // Seri Puanı Hesapla
+        let totalPts = 0;
+        [...hypotheticalGroups.complete].forEach(g => {
+            totalPts += evaluateCluster(g).points;
+        });
 
-    if (!canOpenWith101 && !canOpenWith5Pairs) {
-        let msg = `Bu taş (${tile.number}) ile ne 101 puan (${totalPts}) ne de 5 çift (${totalPairs}) yapabiliyorsun.`;
-        showGameMessage(msg);
-        return;
+        // Çift Sayısı Hesapla (Özel Fonksiyonla)
+        const totalPairs = countPossiblePairs(hypotheticalHand);
+        const canOpenWith101 = totalPts >= 101;
+        const canOpenWith5Pairs = totalPairs >= 5;
+
+        if (canOpenWith101 || canOpenWith5Pairs) allowedToSteal = true;
+        
+        if (!allowedToSteal) {
+            let msg = `Bu taş (${tile.number}) ile ne 101 puan (${totalPts}) ne de 5 çift (${totalPairs}) yapabiliyorsun.`;
+            showGameMessage(msg);
+            return;
+        }
     }
 
     // Çal! - Discard yığından çıkar, elime ekle
