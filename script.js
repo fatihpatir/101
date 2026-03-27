@@ -1765,6 +1765,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         roundsVal = gameState.maxRounds;
         if (roundsDisplay) roundsDisplay.textContent = roundsVal;
+        // Load current helpers state
+        const helpersToggle = document.getElementById('toggle-helpers');
+        if (helpersToggle) helpersToggle.checked = !document.getElementById('player-user')?.classList.contains('helpers-hidden');
         document.getElementById('settings-modal').style.display = 'flex';
     };
 
@@ -1790,6 +1793,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const userNameTag = document.querySelector('.user-name');
         if (userNameTag) userNameTag.textContent = gameState.players.user.name;
         gameState.maxRounds = roundsVal;
+        // Apply helpers toggle
+        const helpersToggle = document.getElementById('toggle-helpers');
+        const userArea = document.getElementById('player-user');
+        if (helpersToggle && userArea) {
+            if (helpersToggle.checked) userArea.classList.remove('helpers-hidden');
+            else userArea.classList.add('helpers-hidden');
+        }
         document.getElementById('settings-modal').style.display = 'none';
         showGameMessage(`Kaydedildi! (${roundsVal} el)`);
     };

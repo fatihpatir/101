@@ -90,6 +90,20 @@ body {
     border-color: #ffd700;
 }
 
+/* SaĞ taraftaki butonları küçük ekranlarda daha çok sığdir */
+@media (max-width: 500px) {
+    .nav-btn span {
+        display: none;
+    }
+    .nav-btn {
+        padding: 4px 8px;
+        font-size: 0.6rem;
+    }
+    .top-nav {
+        padding: 0 8px;
+    }
+}
+
 #game-container {
     width: 100vw;
     height: 100vh;
@@ -130,11 +144,11 @@ body {
 
 /* Sol Oyuncu */
 .player-slot.left {
-    left: max(5px, env(safe-area-inset-left, 2px));
+    left: 0;  /* Kenarın tam sıfırına yapıştır, ada görmezden gel */
     top: 50%;
     transform: translateY(-50%);
     flex-direction: row;
-    gap: 12px;
+    gap: 0;
 }
 
 /* Sağ Oyuncu */
@@ -1091,6 +1105,12 @@ body.dragging-mode .pair-group::after {
 
 .action-rect:active {
     transform: translateY(2px);
+}
+
+/* Helpers Toggle applied from JS */
+.helpers-hidden .action-rect,
+.helpers-hidden .action-divider {
+    display: none !important;
 }
 
 /* User Rack Area Wrapper */
