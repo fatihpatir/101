@@ -1388,26 +1388,108 @@ body.dragging-mode .pair-group::after {
     /* Alanları Rahatlatma (Ortayı Daralt Ki Yanlara Çarpmasın, Ama Deniz'e Doğru Yükselsin) */
     .center-grid-container {
         width: 86%;  
-        height: 60%; /* Deniz'e çarpmamak için biraz küçültüldü (64'ten 60'a) */
-        top: 39%;    /* Aşağı kaydırıldı (36'dan 39'a) */
+        height: 60%; 
+        top: 39%;
+        position: relative; /* İçindeki absoluteler için */
         z-index: 5;
     }
 
-    /* Desteyi Masanın Ortasından At, Sağ Alta Sabitle */
+    /* Desteyi Serilerin Kendi İçinde Sağ Alt Köşeye Sabitle */
     .center-deck-area {
-        position: fixed;
-        bottom: 10px;
-        right: 15px;
-        bottom: max(10px, env(safe-area-inset-bottom, 10px));
-        right: max(15px, env(safe-area-inset-right, 15px));
-        transform: scale(0.9);
-        z-index: 50;
-        background: rgba(0,0,0,0.7);
+        position: absolute;
+        bottom: 0px;
+        right: 0px;
+        transform: scale(0.65);
+        transform-origin: bottom right;
+        z-index: 100;
+        background: rgba(0, 0, 0, 0.4); 
+        padding: 5px;
+        border-radius: 6px 0 0 0; /* Sadece içe bakan köşeyi yuvarla */
+        border: 1px solid rgba(255,215,0,0.1);
+        pointer-events: auto !important;
     }
 
+    /* Deste kutusunu butonlardan uzaklaştır (Sol-Alt yerine artık Seriler kutusunun içinde ama kenardan açık tursun) */
+    /* Deste ve Gösterge (Sağ Alt Köşe) */
+    .center-deck-area {
+        position: absolute;
+        bottom: 0px;
+        right: 0px;
+        transform: scale(0.65);
+        transform-origin: bottom right;
+        z-index: 100;
+        background: rgba(0, 0, 0, 0.4); 
+        padding: 5px;
+        border-radius: 6px 0 0 0;
+        border: 1px solid rgba(255,215,0,0.1);
+        pointer-events: auto !important;
+    }
+
+    /* ISKATA ALANLARI (Istakalara Sabitlenmiş Stabil Düzen) */
+    .static-side-discard {
+        position: absolute;
+        width: 34px;
+        height: 48px;
+        background: rgba(0, 0, 0, 0.4); /* Daha belirgin siyah zemin */
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        border-radius: 4px;
+        z-index: 1000;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        transform: scale(0.85);
+        pointer-events: auto !important;
+        top: 50%;
+        margin-top: -24px;
+        overflow: visible !important; /* Taşlar dışarı taşabilmeli */
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    /* Üst Istaka Bölgesi (Deniz) */
+    .bot-rack-container .static-side-discard#discard-bot-2 { left: -45px !important; }
+    .bot-rack-container .static-side-discard#discard-bot-3 { right: -45px !important; }
+
+    /* Alt Istaka Bölgesi (Fatih) */
+    .user-rack-container .static-side-discard#discard-bot-1 { left: -45px !important; }
+    .user-rack-container .static-side-discard#discard-user { right: -45px !important; }
+
+    /* Pozisyon ve Boyut Güvencesi (Ahşap Kutuları Bozmadan) */
+    .bot-rack-container, .user-rack-container { 
+        position: relative !important; 
+        display: flex !important;
+        justify-content: center;
+        align-items: center;
+        width: 100% !important;
+        margin: 0 auto !important;
+    }
+    
+    .rack-wrapper, .bot-rack-top {
+        position: relative;
+        margin: 0 auto;
+        /* Kendi genişliklerini korumalarına izin ver */
+    }
+    
     /* Bot Istakalarını Küçült */
     .bot-rack-top { width: 140px; height: 26px; }
     .bot-rack-left, .bot-rack-right { width: 26px; height: 140px; }
+
+    /* El İstatistikleri (Eski Yer) */
+    .hand-stats {
+        display: flex;
+        gap: 12px;
+        margin-left: 15px;
+        background: rgba(0,0,0,0.4);
+        padding: 4px 10px;
+        border-radius: 4px;
+        border: 1px solid rgba(255,215,0,0.1);
+    }
+    .stat-item {
+        color: #ffd700;
+        font-size: 0.65rem;
+        font-weight: 800;
+        font-family: 'Outfit', sans-serif;
+    }
+    .stat-label { opacity: 0.6; margin-right: 3px; }
 
     /* Botları Kaydırma (Adaları Tamamen Yoksay) */
     .player-slot.top { top: 2px !important; } /* Deniz'i en tavana yasla */
@@ -1417,61 +1499,62 @@ body.dragging-mode .pair-group::after {
     /* İsim Etiketleri Küçült */
     .name-tag { font-size: 0.6rem; padding: 2px 8px; }
 
-    /* Senin Alanın - Fatih */
+    /* Senin Alanın - Fatih (Büyük Parmak Dostu Düzen) */
     .user-rack-area {
-        max-width: 520px;
-        position: relative; /* İçindeki absoluteler bunun üzerinden hesaplansın */
+        max-width: 580px; /* 520'den 580'e çıkarıldı */
+        position: relative;
     }
 
     .rack-wrapper {
-        max-width: 520px;
-        padding: 4px;
+        max-width: 580px;
+        padding: 6px;
         margin: 0;
     }
 
     .rack-row {
         height: auto;
-        padding: 3px 6px;
-        gap: 2px;
-        min-height: 38px;
+        padding: 4px 8px;
+        gap: 3px;
+        min-height: 44px; /* 38'den 44'e (Daha geniş tık alanı) */
     }
 
     .tile-slot {
-        max-width: 25px;
+        max-width: 28px; /* 25'den 28'e */
         height: auto;
     }
 
     .tile-spacer {
-        width: 8px;
-        height: 38px;
+        width: 10px;
+        height: 44px;
     }
 
-    .tile span { font-size: 0.85rem; }
+    .tile span { font-size: 1rem; } /* Taş sayıları daha okunaklı */
     
     /* Aksiyon Butonları (Seri, Çift, vb) */
     .rack-actions {
-        gap: 2px;
-        margin-bottom: 0px;
+        gap: 4px;
+        margin-bottom: 2px;
     }
 
     .action-rect {
-        font-size: 0.55rem;
-        padding: 3px 8px;
-        height: 22px;
+        font-size: 0.65rem; /* Buton yazıları büyütüldü */
+        padding: 4px 10px;
+        height: 26px; /* Butonlar daha kolay basılabilir */
         line-height: 1;
     }
 
-    /* KRİTİK DÜZELTME: "Puan: 0 Çift: 0" Kutusunu SİNEM'den Alıp FATİH'in Yanına Koy */
+    /* KRİTİK DÜZELTME: Puan ve Çift İstatistikleri (Butonların Yanı) */
     .hand-stats {
         position: absolute;
-        top: 0px;    /* Fatih yazısıyla aynı hizaya gelmesi için */
-        left: 50%;   /* Tam ortaya al */
-        right: auto;
-        margin-left: 35px; /* Fatih'in sağındaki boşluğa it */
-        padding: 3px 8px;
-        transform: scale(0.8); /* Kibar görünmesi için küçült */
+        top: -2px;   /* Fatih yazısının hizasına ince ayar */
+        left: 50%;
+        margin-left: 55px; /* Çakışmayı önlemek için biraz daha sağa itildi */
+        padding: 4px 10px;
+        transform: scale(0.75); /* Daha kibar dursun */
         transform-origin: left center;
-        background: rgba(0,0,0,0.8);
+        background: rgba(0,0,0,0.85); /* Arka plan belirginleştirildi */
+        z-index: 2000;
+        pointer-events: none;
     }
 
     /* Atılan Taş Formatları (Seri, Çift Ortası) */
@@ -1480,14 +1563,16 @@ body.dragging-mode .pair-group::after {
         height: 40px;
     }
 
-    /* KRİTİK DÜZELTME: DESTE AŞIRI BÜYÜKTÜ, Z-INDEX 2100'LE ÜSTTE EZİYORDU */
+    /* DESTE VE GÖSTERGE (Istaka Büyüdüğü İçin Hafif Yukarı Kaydırıldı) */
     .center-deck-area {
-        bottom: 8px;
-        right: 8px;
-        padding: 6px 8px;
-        transform: scale(0.65); /* Yüzde 35 küçült ve köşeye it! */
+        bottom: 12px;
+        right: 12px;
+        padding: 6px 10px;
+        transform: scale(0.65);
         transform-origin: bottom right;
         gap: 6px;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 215, 0, 0.2);
     }
 }
 

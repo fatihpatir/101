@@ -42,32 +42,28 @@
         </header>
 
         <div class="table">
-            <!-- Atılan Taş Alanları (Boşluklar) - Sabit Yerleşimler için DOM'da Taşındı -->
-
             <!-- Bot-2 (Karşı) -->
             <div class="player-slot top" id="bot-2">
                 <div class="bot-rack-container">
-                    <!-- Bot 3'ten TAŞ AL -->
-                    <div class="discard-zone side-slot left-take" id="discard-bot-3"></div>
+                    <div class="discard-zone static-side-discard" id="discard-bot-2"></div> <!-- Faruk'un Solu -->
                     <div class="bot-rack bot-rack-top">
-                        <div class="name-tag">Deniz</div>
+                        <div class="name-tag">Faruk</div>
                     </div>
-                    <!-- Kendi Taşını AT (Bot 1'e) -->
-                    <div class="discard-zone side-slot right-discard" id="discard-bot-2"></div>
+                    <div class="discard-zone static-side-discard" id="discard-bot-3"></div> <!-- Faruk'un Sağı -->
                 </div>
             </div>
 
             <!-- Bot-1 (Sol) -->
             <div class="player-slot left" id="bot-1">
                 <div class="bot-rack bot-rack-left">
-                    <div class="name-tag">Samet</div>
+                    <div class="name-tag">Selin</div>
                 </div>
             </div>
 
             <!-- Bot-3 (Sağ) -->
             <div class="player-slot right" id="bot-3">
                 <div class="bot-rack bot-rack-right">
-                    <div class="name-tag">Sinem</div>
+                    <div class="name-tag">Ayşe</div>
                 </div>
             </div>
 
@@ -79,32 +75,30 @@
                     <div class="field-area" id="series-field">
                         <!-- Seriler buraya tık tık dizilecek -->
                     </div>
+                    
+                    <!-- Deste ve Gösterge Bölümü (Artık Seriler Bölümünün Kendi İçinde Sağ Alt Köşede) -->
+                    <div class="center-deck-area">
+                        <div class="deck-pile-wrap">
+                            <div class="deck-pile" id="deck-pile"></div>
+                            <div class="deck-count">20</div>
+                        </div>
+                        <div class="indicator-tile" id="indicator-tile">
+                            <!-- Gösterge taşı buraya gelecek -->
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Ayırıcı Çizgi -->
 
-                <!-- Çift Açma Alanı (%30) -->
+                <!-- Çift Açma Alanı (%25) -->
                 <div class="play-section" id="pairs-section">
                     <div class="section-label">ÇİFTLER</div>
                     <div class="field-area" id="pairs-field">
                         <!-- Çiftler buraya dikey dizilecek -->
                     </div>
                 </div>
-
             </div>
 
-            <!-- Deste ve Gösterge Bölümü (Masa Dışında, Bağımsız Katman) -->
-            <div class="center-deck-area">
-                <div class="deck-pile-wrap">
-                    <div class="deck-pile" id="deck-pile"></div>
-                    <div class="deck-count">20</div>
-                </div>
-                <div class="indicator-tile" id="indicator-tile">
-                    <!-- Gösterge taşı buraya gelecek -->
-                </div>
-            </div>
-
-            <!-- Kullanıcı Bölgesi -->
             <div class="user-bottom" id="player-user">
                 <div class="user-rack-area">
                     <div class="name-tag user-name">Fatih</div>
@@ -112,10 +106,10 @@
                     <div class="rack-actions">
                         <button class="action-rect btn-sort" id="btn-sort-series">SERİ</button>
                         <button class="action-rect btn-sort" id="btn-sort-pairs">ÇİFT</button>
-                        <button class="action-rect btn-draw pulse-draw" id="btn-draw-stone">TAŞ ÇEK</button>
-                        <div class="action-divider"></div>
-                        <button class="action-rect btn-open" id="btn-open-series">SERİ AÇ</button>
-                        <button class="action-rect btn-open" id="btn-open-pairs">ÇİFT AÇ</button>
+                        <button class="action-rect btn-draw" id="btn-draw-deck">TAŞ ÇEK</button>
+                        <div class="btn-divider"></div>
+                        <button class="action-rect btn-util" id="btn-open-series">SERİ AÇ</button>
+                        <button class="action-rect btn-util" id="btn-open-pairs">ÇİFT AÇ</button>
                         <button class="action-rect btn-util" id="btn-process">İŞLE</button>
                         <button class="action-rect btn-util" id="btn-discard">AT</button>
                         <button class="action-rect btn-util" id="btn-undo">GERİ AL</button>
@@ -129,20 +123,15 @@
                         </div>
                     </div>
 
-
                     <div class="user-rack-container">
-                        <!-- TAŞ AL (Bot 1'den gelen) -->
-                        <div class="discard-zone side-slot left-take" id="discard-bot-1"></div>
-
+                        <div class="discard-zone static-side-discard" id="discard-bot-1"></div> <!-- Senin Solun -->
                         <div class="rack-wrapper">
                             <div class="rack-grid">
                                 <div class="rack-row" id="row-1"></div>
                                 <div class="rack-row" id="row-2"></div>
                             </div>
                         </div>
-
-                        <!-- TAŞ AT (Kendi atacağımız) -->
-                        <div class="discard-zone side-slot right-discard" id="discard-user"></div>
+                        <div class="discard-zone static-side-discard" id="discard-user"></div> <!-- Senin Sağın -->
                     </div>
                 </div>
             </div>

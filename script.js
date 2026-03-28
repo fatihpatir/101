@@ -15,9 +15,9 @@ let gameState = {
     hasDrawn: false,
     players: {
         user: { name: 'Fatih', hand: [], score: 0, hasOpened: false, openedType: null },
-        bot1: { name: 'Samet', hand: [], score: 0, hasOpened: false, openedType: null },
-        bot2: { name: 'Deniz', hand: [], score: 0, hasOpened: false, openedType: null },
-        bot3: { name: 'Sinem', hand: [], score: 0, hasOpened: false, openedType: null }
+        bot1: { name: 'Selin', hand: [], score: 0, hasOpened: false, openedType: null },
+        bot2: { name: 'Faruk', hand: [], score: 0, hasOpened: false, openedType: null },
+        bot3: { name: 'Ayşe', hand: [], score: 0, hasOpened: false, openedType: null }
     },
     startingPlayerIdx: 0, // NEW: Her el dönecek
     userRackSlots: new Array(40).fill(null),
@@ -1254,6 +1254,97 @@ function botProcessTiles(botId) {
     }
 }
 
+function autoProcessUserTiles() {
+    const player = gameState.players.user;
+    if (!player.hasOpened) {
+        showGameMessage("Taş işlemek için önce elinizi açmalısınız!");
+        return;
+    }
+    if (!gameState.hasDrawn) {
+        showGameMessage("Önce taş çekmelisiniz!");
+        return;
+    }
+
+    let changed = true;
+    let totalProcessed = 0;
+
+    // Masadaki tüm perleri (kendin ve botlar) tara
+    while (changed) {
+        changed = false;
+        const owners = ['user', 'bot1', 'bot2', 'bot3'];
+
+        owners.forEach(owner => {
+            const tableGroups = gameState.table[owner] || [];
+            tableGroups.forEach((group) => {
+                // Elimizdeki taşları (istakadaki slotları) tara
+                for (let i = 0; i < gameState.userRackSlots.length; i++) {
+                    const tile = gameState.userRackSlots[i];
+                    if (!tile) continue;
+
+                    // Bu taş bu gruba eklebilir mi?
+                    if (isValidAddition(tile, group)) {
+                        // Seri ise konumunu bul ve ekle
+                        if (getRunPoints(group) > 0) {
+                            const nums = group.filter(t => !isWildCard(t)).map(t => t.number);
+                            const min = Math.min(...nums);
+                            if (!isWildCard(tile) && tile.number < min) group.unshift(tile);
+                            else group.push(tile);
+                        } else {
+                            group.push(tile);
+                        }
+
+                        // Istakadan ve elden sil
+                        gameState.userRackSlots[i] = null;
+                        player.hand = player.hand.filter(t => t.id !== tile.id);
+                        
+                        changed = true;
+                        totalProcessed++;
+                    }
+                }
+            });
+        });
+    }
+
+    if (totalProcessed > 0) {
+        renderAll();
+        showGameMessage(`${totalProcessed} taş masaya otomatik işlendi! 🔥`);
+    } else {
+        showGameMessage("Elinizde işlenecek taş bulunamadı.");
+    }
+}
+
+function handleProcessTile(tileId, groupIdx, owner) {
+    // Manuel işleme (Sürükle-Bırak veya Tıkla-İşle için)
+    const player = gameState.players.user;
+    if (!player.hasOpened) {
+        showGameMessage("Önce elinizi açmalısınız!");
+        return;
+    }
+
+    const rackIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
+    if (rackIdx === -1) return;
+    
+    const tile = gameState.userRackSlots[rackIdx];
+    const group = gameState.table[owner][groupIdx];
+
+    if (isValidAddition(tile, group)) {
+        if (getRunPoints(group) > 0) {
+            const nums = group.filter(t => !isWildCard(t)).map(t => t.number);
+            const min = Math.min(...nums);
+            if (!isWildCard(tile) && tile.number < min) group.unshift(tile);
+            else group.push(tile);
+        } else {
+            group.push(tile);
+        }
+        gameState.userRackSlots[rackIdx] = null;
+        player.hand = player.hand.filter(t => t.id !== tileId);
+        renderAll();
+        showGameMessage("Taş işlendi! 🔥");
+    } else {
+        showGameMessage("Bu taş bu perle uyumlu değil.");
+    }
+}
+
 function renderDiscard(playerId, tile) {
     if (!gameState.discards[playerId]) gameState.discards[playerId] = [];
     tile.isFlipped = false; // Taşı ön yüze çevir
@@ -1275,6 +1366,8 @@ function renderDiscardZone(playerId) {
     const htmlId = playerId === 'user' ? 'user' : playerId.replace('bot', 'bot-');
     const zone = document.getElementById(`discard-${htmlId}`);
     if (!zone) return;
+
+    // Sadece fark edildiğinde temizleyip yeniden çiz (Daha stabil)
     zone.innerHTML = '';
     const all = gameState.discards[playerId] || [];
     if (all.length === 0) return;
@@ -1282,41 +1375,31 @@ function renderDiscardZone(playerId) {
     all.forEach((tile, index) => {
         const tileEl = tile.createHTMLElement(true);
         tileEl.style.position = 'absolute';
-        tileEl.style.setProperty('--idx', index);
-        tileEl.style.zIndex = index + 5;
-        // Yığını sınırla ve daha stabil yap (max 10 taş görseli yeterli)
+        tileEl.style.zIndex = index + 10; // Her zaman üstte kalsın
+        
+        // Yığını sınırla ve daha stabil yap (max 10 taş görseli yığın hissi için yeterli)
         const visualIndex = Math.min(index, 10);
         if (!zone.classList.contains('expanded')) {
-            tileEl.style.top = `${visualIndex * 0.8}px`; // Daha sıkı ve stabil yığın
-            tileEl.style.left = `${visualIndex * 0.4}px`;
-            tileEl.style.transform = 'scale(0.95)';
+            tileEl.style.top = `${visualIndex * 1.5}px`; // Biraz daha görünür yığın (kaybolmaması için)
+            tileEl.style.left = `${visualIndex * 0.8}px`;
+            tileEl.style.transform = 'scale(0.9)';
         } else {
             tileEl.style.top = '0px';
-            tileEl.style.left = `${index * 30}px`;
+            tileEl.style.left = `${index * 32}px`;
             tileEl.style.transform = 'scale(1)';
-            tileEl.style.zIndex = index + 100;
+            tileEl.style.zIndex = index + 1000;
         }
 
-        // Çalınabilir taş: en üst taş, botun attığı, sıra bizde, henüz çekmedik
-        const isTopTile = index === all.length - 1;
-        const isStealable = isTopTile
-            && gameState.lastDiscard?.tile?.id === tile.id
-            && gameState.turnOrder[gameState.currentTurnIndex] === 'user'
-            && !gameState.hasDrawn;
+        // Çalınabilir taş: yığının en üstündeki taş, sıra bizde ve henüz çekmedik
+        const isLastInThisZone = index === all.length - 1;
+        const isMostRecentDiscard = gameState.lastDiscard && gameState.lastDiscard.tile.id === tile.id;
+        const isCurrentPlayerUser = gameState.turnOrder[gameState.currentTurnIndex] === 'user';
 
-        if (isStealable) {
+        if (isLastInThisZone && isMostRecentDiscard && isCurrentPlayerUser && !gameState.hasDrawn) {
             tileEl.classList.add('stealable-tile');
             tileEl.title = 'Bu taşı çalmak için tıkla!';
-
-            // Tıklama ile çalma
+            tileEl.style.cursor = 'grab';
             tileEl.onclick = (e) => { e.stopPropagation(); attemptStealDiscard(); };
-
-            // Sürükleme ile çalma başlatma (Mobile)
-            tileEl.ontouchstart = (e) => {
-                gameState.touch.sourceType = 'steal';
-                gameState.touch.draggedTileId = tile.id;
-                createPhantom(tileEl);
-            };
         }
         zone.appendChild(tileEl);
     });
@@ -1807,6 +1890,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnOpenPairs = document.getElementById('btn-open-pairs');
     if (btnOpenPairs) btnOpenPairs.onclick = openPairs;
+
+    const btnProcess = document.getElementById('btn-process');
+    if (btnProcess) btnProcess.onclick = autoProcessUserTiles;
 
     // --- NAV BUTONLARI ---
     const newGameBtn = document.getElementById('new-game-top');
