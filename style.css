@@ -374,18 +374,19 @@ body {
     padding: 1px !important;
 }
 
-/* Masa alanını çoklu satıra izin verecek hale getir (Wrap Kesin Çözüm) */
+/* Masa alanını çoklu satıra izin verecek hale getir (Sıkıştırılmış Düzen) */
 #series-field,
 #pairs-field {
     display: flex !important;
     flex-direction: row !important;
-    flex-wrap: wrap !important; /* nowrap'tan wrap'e kesin geçiş */
-    gap: 12px !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
     width: 100% !important;
-    padding: 10px;
+    padding: 5px;
     box-sizing: border-box;
     overflow-y: auto !important;
     overflow-x: hidden !important;
+    align-content: flex-start !important;
 }
 
 .tile-face.back {
@@ -686,17 +687,17 @@ body {
 .field-area {
     flex-grow: 1;
     position: relative;
-    padding: 5px;
-    display: flex;
-    flex-direction: row; /* Yan yana dizilim yatay aks */
-    flex-wrap: wrap; /* Sığmazsa bir alt satıra geç (YANİ ALT ALTA GEL) */
-    align-content: flex-start;
-    overflow-y: auto; /* Aşağı kaydırma açılsın */
-    overflow-x: hidden; /* Sağa taşma tamamen kapatılsın */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    gap: 6px;
+    padding: 2px 5px !important; /* Üst padding iyice kısıldı */
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-content: flex-start !important; /* En üstten başla */
+    justify-content: flex-start !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    gap: 4px !important; /* Satırlar arası boşluk daraltıldı */
 }
+
 
 .field-area::-webkit-scrollbar {
     display: none;
@@ -705,14 +706,14 @@ body {
 .table-group {
     display: flex;
     align-items: center;
-    gap: 2px;
-    background: rgba(255, 255, 255, 0.03);
-    padding: 4px;
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 2px 4px; /* Sıkıştırıldı */
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    margin: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 2px; /* Dış boşluk iyice kısıldı */
     transition: all 0.3s ease;
-    min-width: min-content; /* İçeriğe göre genişlesin */
+    min-width: min-content;
 }
 
 .process-slot {
