@@ -102,8 +102,13 @@ class Tile {
             this.touchStartTime = 0;
         }, { passive: true });
 
-        // Drag olayları (Sadece yüzü yukarıyken sürükleme daha mantıklı ama kararı sana bırakıyorum)
+        // Drag olayları (PC'de native HTML5 drag, Mobilde ise kendi Phantom drag sistemimiz çalışır)
         div.addEventListener('dragstart', (e) => {
+            // Mobilde native ghost hatasını ve devasa şeffaf kutuyu önlemek için native drag'i iptal et:
+            if (gameState.touch.draggedTileId === this.id) {
+                e.preventDefault();
+                return;
+            }
             if (!div.classList.contains('face-up')) { e.preventDefault(); return; }
             e.dataTransfer.setData('tileId', this.id);
             div.classList.add('dragging');
@@ -1465,15 +1470,31 @@ function handleTouchEnd(e) {
 }
 
 
-// --- UTILS (YARDIMCI ARAÇLAR) ---
 function createPhantom(sourceEl) {
-    const p = document.createElement('div');
-    p.className = 'tile phantom-drag';
+    // sourceEl genellikle tile-slot veya discard-zone olabilir.
+    // İçerisindeki gerçek 'tile' elementini bul
+    const originalTile = sourceEl.querySelector('.tile') || sourceEl;
+    if (!originalTile) return;
+
+    // Gerçek dimensi ölçüleri al (mobilde ve PC'de dinamik kalır)
+    const rect = originalTile.getBoundingClientRect();
+
+    // Tile'ın kendisini klonla
+    const p = originalTile.cloneNode(true);
+    p.classList.add('phantom-drag');
+    
+    // Sabit pozisyon ve zorunlu ölçüler (saf 100% olmasın diye)
     p.style.position = 'fixed';
-    p.style.zIndex = '10000';
+    p.style.width = rect.width + 'px';
+    p.style.height = rect.height + 'px';
+    p.style.top = rect.top + 'px';    // Başlangıç noktasını oturt
+    p.style.left = rect.left + 'px';  // (dokunma hareketiyle güncellenecek)
+    p.style.zIndex = '99999';
     p.style.pointerEvents = 'none';
-    p.style.opacity = '0.7';
-    p.innerHTML = sourceEl.innerHTML;
+    p.style.opacity = '0.8';
+    p.style.margin = '0';
+    p.style.boxShadow = '0 10px 25px rgba(0,0,0,0.6)';
+
     document.body.appendChild(p);
     gameState.touch.phantom = p;
 }
@@ -1827,7 +1848,14 @@ document.addEventListener('DOMContentLoaded', () => {
             handleDraw(-1);
         });
 
-        deckPile.addEventListener('dragstart', (e) => { e.dataTransfer.setData('source', 'deck'); });
+        deckPile.addEventListener('dragstart', (e) => { 
+            // Mobilde native drag'i iptal et (dev gölge çıkmasın)
+            if (gameState.touch.phantom) {
+                e.preventDefault();
+                return;
+            }
+            e.dataTransfer.setData('source', 'deck'); 
+        });
 
         // Mobil'de dokunup bırakınca taş çek (phantom oluşturmadan basit tap)
         let deckTouchStartTime = 0;

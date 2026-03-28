@@ -1229,18 +1229,25 @@ body.dragging-mode .pair-group::after {
 .tile {
     width: 100%;
     height: 100%;
-    background: white;
-    border-radius: 3px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    /* 1.5 en:boy oranı. 101 Okey taşı oranına yakın (Mobilde daha doğal durur) */
     position: relative;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    cursor: pointer;
+    border-radius: 6px;
+    cursor: grab;
+    transform-style: preserve-3d;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s, opacity 0.2s;
+    transform-origin: center center;
+    -webkit-user-drag: element; /* PC'de geçerli */
     flex-shrink: 0;
     transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
     user-select: none;
+}
+
+/* TOUCH EKRANLARDA NATIVE DRAG'I TAMAMEN KAPAT Kİ SADECE PHANTOM ÇALIŞSIN (DEV ŞEFFAF KUTU BUG'I İÇİN) */
+@media (hover: none) and (pointer: coarse) {
+    .tile, #deck-pile {
+        -webkit-user-drag: none !important;
+        user-drag: none !important;
+    }
 }
 
 .tile:hover {
@@ -1962,15 +1969,22 @@ body.dragging-mode .discard-zone#discard-user {
 /* --- DİKEY MODDA DÖNDÜRME MESAJI --- */
 @media screen and (orientation: portrait) {
     #rotate-overlay {
-        display: flex;
+        display: flex !important;
+    }
+    #game-container {
+        display: none !important; /* Arka plandaki kırık görüntüyü tamamen yok et */
+    }
+    body {
+        background: #1a4d2e;
     }
 }
 
 @media screen and (orientation: landscape) {
     #rotate-overlay {
-        display: none;
+        display: none !important;
     }
     #game-container {
+        display: block; /* Veya flex/grid, duruma göre */
         position: fixed;
         top: 0;
         left: 0;
