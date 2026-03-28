@@ -1387,9 +1387,9 @@ body.dragging-mode .pair-group::after {
 
     /* Alanları Rahatlatma (Ortayı Daralt Ki Yanlara Çarpmasın, Ama Deniz'e Doğru Yükselsin) */
     .center-grid-container {
-        width: 86%;  /* Yanları biraz daha zorla aç */
-        height: 64%; /* Deniz'e doğru iyice tırman (eskiden 56'ydı) */
-        top: 36%;    /* Daha yukarıdaki Deniz (eskiden 41'di) */
+        width: 86%;  
+        height: 60%; /* Deniz'e çarpmamak için biraz küçültüldü (64'ten 60'a) */
+        top: 39%;    /* Aşağı kaydırıldı (36'dan 39'a) */
         z-index: 5;
     }
 
@@ -2087,6 +2087,12 @@ body.dragging-mode .discard-zone#discard-user {
 /* --- YENİ STİLLER: AKTİF SIRA PARLAMASI --- */
 .active-turn {
     animation: turn-glow-only 2s infinite ease-in-out !important;
+}
+
+.nav-btn.icon-only {
+    padding: 3px 5px !important;
+    font-size: 0.7rem;
+    min-width: 24px;
 }
 
 #player-user.active-turn .rack-wrapper {
