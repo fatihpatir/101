@@ -520,11 +520,11 @@ body {
 }
 
 
-/* Deste ve Gösterge (En Stratejik Nokta: Seriler & Çiftler Birleşim Üstü) */
+/* Deste ve Gösterge (Kullanıcı İsteği: Daha Sol-Üst Alan) */
 .center-deck-area {
     position: absolute;
-    top: 12%; 
-    left: 76%; /* Seriler (%75) ve Çiftler'in birleşim noktası */
+    top: 7%; 
+    left: 70%; /* Biraz daha sola ve yukarı alındı */
     transform: translateX(-50%);
     display: flex !important;
     flex-direction: row !important;
@@ -538,6 +538,7 @@ body {
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
     pointer-events: auto !important;
 }
+
 
 
 /* Taş Destesi (Görünür Taş) */
@@ -1547,12 +1548,12 @@ body.dragging-mode .pair-group::after {
         height: 40px;
     }
 
-    /* MOBİL VE KÜÇÜK EKRANLARDA DESTE ALANI (Birleşim Noktası) */
+    /* MOBİL VE KÜÇÜK EKRANLARDA DESTE ALANI (Daha Sol-Üst) */
     .center-deck-area {
         position: absolute;
-        top: 12%;
-        left: 75%;
-        transform: translateX(-50%) scale(0.7);
+        top: 7%;
+        left: 70%;
+        transform: translateX(-50%) scale(0.65);
         transform-origin: top center;
         padding: 4px 10px;
         gap: 8px;
