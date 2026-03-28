@@ -526,7 +526,7 @@ body {
     pointer-events: auto !important;
 }
 
-/* Taş Destesi (Kralın "Görünür" Taşı) */
+/* Taş Destesi (Görünür Taş) */
 .deck-pile {
     width: 34px;
     height: 50px;
@@ -641,15 +641,15 @@ body {
 }
 
 #series-section {
-    flex: 0 0 78%;
-    max-width: 78%;
+    flex: 0 0 75%;
+    max-width: 75%;
     border-right: 2px solid rgba(255, 255, 255, 0.05);
     overflow: hidden; /* Taşmayı engelle */
 }
 
 #pairs-section {
-    flex: 0 0 22%;
-    max-width: 22%;
+    flex: 0 0 25%;
+    max-width: 25%;
     background: rgba(0, 0, 0, 0.1);
     overflow: hidden;
 }
@@ -1308,7 +1308,7 @@ body.dragging-mode .pair-group::after {
     color: #fbc02d;
 }
 
-/* --- TAŞ ÇEK BUTONU (KRALIN YEDEĞİ) --- */
+/* --- TAŞ ÇEK BUTONU --- */
 .btn-draw {
     background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%) !important;
     color: #000 !important;
@@ -1338,7 +1338,7 @@ body.dragging-mode .pair-group::after {
     }
 }
 
-/* --- KRALIN GÖZÜ: DEBUG KONSOLU --- */
+/* --- OYUN KONSOLU --- */
 #debug-console {
     position: fixed;
     top: 60px;
@@ -1387,10 +1387,22 @@ body.dragging-mode .pair-group::after {
 
     /* Alanları Rahatlatma (Ortayı Daralt Ki Yanlara Çarpmasın, Ama Deniz'e Doğru Yükselsin) */
     .center-grid-container {
-        width: 84%;  /* Samet ve Sinem için yanlardan %8'er güvenli boşluk */
-        height: 56%; /* Deniz'e doğru genişletildi */
-        top: 41%;    /* Yukarı kaydırıldı (Fatih'ten uzak, Deniz'e yakın) */
+        width: 86%;  /* Yanları biraz daha zorla aç */
+        height: 64%; /* Deniz'e doğru iyice tırman (eskiden 56'ydı) */
+        top: 36%;    /* Daha yukarıdaki Deniz (eskiden 41'di) */
         z-index: 5;
+    }
+
+    /* Desteyi Masanın Ortasından At, Sağ Alta Sabitle */
+    .center-deck-area {
+        position: fixed;
+        bottom: 10px;
+        right: 15px;
+        bottom: max(10px, env(safe-area-inset-bottom, 10px));
+        right: max(15px, env(safe-area-inset-right, 15px));
+        transform: scale(0.9);
+        z-index: 50;
+        background: rgba(0,0,0,0.7);
     }
 
     /* Bot Istakalarını Küçült */
@@ -1594,7 +1606,7 @@ body.dragging-mode .pair-group::after {
     border-radius: 4px;
 }
 
-/* --- KRALIN YENİ STİLLERİ --- */
+/* --- YENİ STİLLER --- */
 
 /* Game Feedback Toast */
 .game-toast {
@@ -1717,7 +1729,7 @@ body.dragging-mode .discard-zone#discard-user {
     }
 }
 
-/* Turn Pulse Animation - Kral Dokunuşu: Daha Büyük ve Belirgin */
+/* Turn Pulse Animation: Daha Büyük ve Belirgin */
 .your-turn-pulse {
     animation: pulse-gold-full 1.2s infinite ease-in-out !important;
     border: 3px solid #ffd700 !important;
@@ -2072,7 +2084,7 @@ body.dragging-mode .discard-zone#discard-user {
     margin-top: 5px;
 }
 
-/* --- KRALIN YENİ STİLLERİ: AKTİF SIRA PARLAMASI --- */
+/* --- YENİ STİLLER: AKTİF SIRA PARLAMASI --- */
 .active-turn {
     animation: turn-glow-only 2s infinite ease-in-out !important;
 }
@@ -2086,4 +2098,112 @@ body.dragging-mode .discard-zone#discard-user {
 .player-slot.active-turn .bot-rack {
     box-shadow: 0 0 30px #ffd700 !important;
     border-color: #ffd700 !important;
+}
+
+/* Bilgi (Info) Modalı */
+.info-content {
+    text-align: center;
+}
+.info-body {
+    padding: 20px 0;
+}
+.dev-name {
+    font-size: 1.8rem;
+    font-family: 'Permanent Marker', cursive;
+    color: #ffd700;
+    margin-bottom: 10px;
+}
+.dev-portfolio a {
+    color: #4aff4a;
+    text-decoration: none;
+    font-size: 1.1rem;
+    border-bottom: 1px solid rgba(74, 255, 74, 0.3);
+    padding-bottom: 2px;
+}
+.app-version {
+    margin-top: 25px;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.5);
+}
+.legal-notice {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.3);
+    margin-top: 5px;
+}
+
+/* PWA Install Overlay */
+#pwa-install-overlay {
+    display: none; /* JS ile açılacak */
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    backdrop-filter: blur(10px);
+    z-index: 1000000;
+    align-items: center;
+    justify-content: center;
+}
+
+.install-card {
+    background: linear-gradient(135deg, #1a3a24 0%, #0f2018 100%);
+    border: 2px solid #ffd700;
+    border-radius: 24px;
+    padding: 40px;
+    width: min(400px, 90vw);
+    text-align: center;
+    box-shadow: 0 0 50px rgba(0,0,0,0.8);
+    position: relative;
+    color: white;
+}
+
+.install-logo {
+    font-size: 4rem;
+    margin-bottom: 15px;
+    animation: bounce 2s infinite;
+}
+
+.install-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    margin: 25px 0 15px;
+    background: #ffd700;
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3);
+}
+
+.ios-guide-hidden { display: none; }
+.ios-instruction {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,0.1);
+    padding: 10px 15px;
+    margin: 10px 0;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+.ios-icon {
+    font-size: 1.5rem;
+    background: rgba(255,215,0,0.2);
+    padding: 5px;
+    border-radius: 5px;
+}
+
+.close-install-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
 }

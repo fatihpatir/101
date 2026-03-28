@@ -1,6 +1,5 @@
 /**
  * 101 Okey Premium - JavaScript Motoru v4.0 (Temiz Mimari)
- * Tüm hakları Krala aittir.
  */
 
 // --- OYUN SABİTLERİ VE DURUMU ---
@@ -350,11 +349,11 @@ function updateHandPoints() {
 function openSeries() {
     const player = gameState.players.user;
     if (player.openedType === 'pairs') {
-        showGameMessage("Çift açtığın için artık seri inemezsin kral!");
+        showGameMessage("Çift açtığınız için seri açamazsınız!");
         return;
     }
     if (!gameState.hasDrawn) {
-        showGameMessage("Önce taş çekmelisin kral!");
+        showGameMessage("Önce taş çekmelisiniz!");
         return;
     }
     const isAlreadyOpen = player.hasOpened;
@@ -417,7 +416,7 @@ function openSeries() {
 function openPairs() {
     const player = gameState.players.user;
     if (!gameState.hasDrawn) {
-        showGameMessage("Önce taş çekmelisin kral!");
+        showGameMessage("Önce taş çekmelisiniz!");
         return;
     }
     
@@ -521,18 +520,22 @@ function handleProcessTile(tileId, groupIdx, owner) {
                 gameState.userRackSlots[rackIdx] = targetOkey; // Okeyi ıstakaya ver
                 targetOkey.isFlipped = false; // Okey ıstakada açık dursun
                 
-                // CEZA: Okeyi masaya açan kişiye 101 puan ekle
-                gameState.players[owner].score += 101;
-                gameState.roundScores[owner][gameState.roundScores[owner].length - 1] += 101;
+                // CEZA: Sadece BAŞKASINDAN çalınca ceza ver
+                if (owner !== 'user') {
+                    gameState.players[owner].score += 101;
+                    gameState.roundScores[owner][gameState.roundScores[owner].length - 1] += 101;
+                    showGameMessage(`OKEY ÇALINDI! ${gameState.players[owner].name}'e +101 Ceza! 🔥`);
+                } else {
+                    showGameMessage("Kendi okeyinizi geri aldınız! 🔥");
+                }
                 
                 renderAll();
-                showGameMessage(`OKEY ÇALINDI! ${gameState.players[owner].name}'e +101 Ceza! 🔥`);
                 return;
             }
         }
     }
 
-    // --- NORMAL İŞLEME KONTROLÜ ---
+        // --- NORMAL İŞLEME KONTROLÜ ---
     const hypotheticalGroup = [...group, tile];
     const isNowRun = getRunPoints(hypotheticalGroup) > 0;
     const isNowSet = getSetPoints(hypotheticalGroup) > 0;
@@ -572,13 +575,17 @@ function getOkeySubstitutes(group) {
     // Check if it's a SET (Set)
     const setPoints = getSetPoints(group);
     if (setPoints > 0) {
-        const num = group.find(t => !isWildCard(t))?.number;
-        group.forEach(t => {
-            if (isWildCard(t)) {
-                subs[t.id] = { number: num, multipleColors: true };
-            }
-        });
-        return subs;
+        const okeyInGroup = group.filter(t => isWildCard(t));
+        const realTilesInGroup = group.filter(t => !isWildCard(t));
+        
+        // Kural: Bir setten okey çalmak için grupta 3 gerçek taş olmalı (okey 4. olarak kalmalı)
+        // Eğer grupta 3 gerçek taş varsa, okey tam olarak 1 rengi temsil eder ve o renk atılınca çalınabilir.
+        if (realTilesInGroup.length === 3) {
+            const num = realTilesInGroup[0].number;
+            const okeyTile = okeyInGroup[0];
+            subs[okeyTile.id] = { number: num, multipleColors: true };
+            return subs;
+        }
     }
     return subs;
 }
@@ -589,8 +596,15 @@ function isValidAddition(tile, group) {
     // 1. SET KONTROLÜ (Aynı sayılar, farklı renkler)
     const setPoints = getSetPoints(group);
     if (setPoints > 0) {
-        if (tile.number !== group.find(t => !isWildCard(t))?.number && !isWildCard(tile)) return false;
-        if (group.length >= 4) return false;
+        const realTiles = group.filter(t => !isWildCard(t));
+        const hasOkey = group.some(t => isWildCard(t));
+        
+        if (tile.number !== realTiles[0]?.number && !isWildCard(tile)) return false;
+        
+        // Eğer okey varsa, toplam kapasite 4'tür (3 gerçek + 1 okey varken 4. gerçeği ekleyip okeyi çalabiliriz)
+        // Eğer okey yoksa, kapasite zaten 4'tür.
+        if (group.length >= 4 && !hasOkey) return false; 
+        
         // Renk zaten var mı?
         const hasColor = group.some(t => t.color === tile.color && !isWildCard(t));
         if (hasColor && !isWildCard(tile)) return false;
@@ -1198,9 +1212,14 @@ function botProcessTiles(botId) {
                                 bot.hand.splice(i, 1);
                                 bot.hand.push(targetOkey);
                                 
-                                gameState.players[owner].score += 101;
-                                logDebug(`${bot.name}, ${gameState.players[owner].name}'den Okey çaldı!`);
-                                showGameMessage(`${bot.name} Okey Çaldı! 🔥`);
+                                // CEZA: Sadece başkasından çalınca ceza yüklensin
+                                if (owner !== botId) {
+                                    gameState.players[owner].score += 101;
+                                    logDebug(`${bot.name}, ${gameState.players[owner].name}'den Okey çaldı!`);
+                                    showGameMessage(`${bot.name} Okey Çaldı! 🔥`);
+                                } else {
+                                    logDebug(`${bot.name} kendi okeyini geri aldı.`);
+                                }
                                 changed = true;
                                 break;
                             }
@@ -1213,8 +1232,16 @@ function botProcessTiles(botId) {
                     for (let i = 0; i < bot.hand.length; i++) {
                         const tile = bot.hand[i];
                         if (isValidAddition(tile, group)) {
-                            group.push(tile);
-                            if (getRunPoints(group) > 0) group.sort((a, b) => a.number - b.number);
+                            // Seri ise başa mı sona mı eklendiğini bul
+                            if (getRunPoints(group) > 0) {
+                                const baseColor = group.find(t => !isWildCard(t))?.color;
+                                const nums = group.filter(t => !isWildCard(t)).map(t => t.number);
+                                const min = Math.min(...nums);
+                                if (!isWildCard(tile) && tile.number < min) group.unshift(tile);
+                                else group.push(tile);
+                            } else {
+                                group.push(tile);
+                            }
                             bot.hand.splice(i, 1);
                             logDebug(`${bot.name} masaya taş işledi: ${tile.number} ${tile.color}`);
                             changed = true;
@@ -1573,14 +1600,20 @@ function findGroups(hand) {
             }
         });
 
-        // EN YÜKSEK PUAN GETİREN ADAYLARA OKEYLERİ DAĞIT
         allCandidates.sort((a, b) => b.val - a.val);
 
         allCandidates.forEach(cand => {
             if (okeys.length > 0) {
                 const stillActive = cand.tiles.every(t => result.leftovers.find(it => it.id === t.id));
                 if (stillActive) {
-                    result.complete.push([...cand.tiles, okeys.pop()]);
+                    let finalGroup = [];
+                    const ok = okeys.pop();
+                    if (cand.type === 'run' && cand.tiles[1].number - cand.tiles[0].number === 2) {
+                        finalGroup = [cand.tiles[0], ok, cand.tiles[1]];
+                    } else {
+                        finalGroup = [...cand.tiles, ok];
+                    }
+                    result.complete.push(finalGroup);
                     cand.tiles.forEach(t => removeTileFromList(result.leftovers, t));
                 }
             }
@@ -1672,8 +1705,17 @@ function findCompleteRuns(list) {
         let l = grouped[clr].sort((a, b) => a.number - b.number);
         let temp = [];
         for (let i = 0; i < l.length; i++) {
-            if (temp.length === 0 || l[i].number === temp[temp.length - 1].number + 1) temp.push(l[i]);
-            else { if (temp.length >= 3) runs.push([...temp]); temp = [l[i]]; }
+            if (temp.length === 0) {
+                temp.push(l[i]);
+                continue;
+            }
+            const diff = l[i].number - temp[temp.length - 1].number;
+            if (diff === 1) temp.push(l[i]);
+            else if (diff === 0) continue; // Aynı sayıdaki duplicate taşı yoksay, diziyi bozma
+            else { 
+                if (temp.length >= 3) runs.push([...temp]); 
+                temp = [l[i]]; 
+            }
         }
         if (temp.length >= 3) runs.push(temp);
     });
@@ -1925,6 +1967,56 @@ document.addEventListener('DOMContentLoaded', () => {
             if (id && zone.id === 'discard-user') processUserDiscard(id);
         };
     });
+
+    // --- BİLGİ BUTONU VE PWA KURULUMU ---
+    const infoBtn = document.getElementById('info-btn');
+    if (infoBtn) infoBtn.onclick = () => document.getElementById('info-modal').style.display = 'flex';
+
+    let deferredPrompt;
+    const installOverlay = document.getElementById('pwa-install-overlay');
+    const installBtn = document.getElementById('pwa-install-btn');
+    const iosGuide = document.getElementById('ios-guide');
+    const closeInstall = document.getElementById('close-install');
+
+    // Uygulama yüklü mü kontrolü
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+    if (!isStandalone) {
+        // iOS Kontrolü
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Android/Chrome için kurulum ekranını göster
+            if (!isIOS) installOverlay.style.display = 'flex';
+        });
+
+        // iOS için özel yönergeyi 3 saniye sonra göster (PWA değilse)
+        if (isIOS) {
+            setTimeout(() => {
+                installBtn.style.display = 'none';
+                iosGuide.classList.remove('ios-guide-hidden');
+                document.getElementById('install-text').innerText = "iPhone/iPad için ana ekrana ekle özelliğini kullanın:";
+                installOverlay.style.display = 'flex';
+            }, 3000);
+        }
+    }
+
+    if (installBtn) {
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') installOverlay.style.display = 'none';
+                deferredPrompt = null;
+            }
+        });
+    }
+
+    if (closeInstall) {
+        closeInstall.onclick = () => installOverlay.style.display = 'none';
+    }
 
     // Başlangıç
     initGame();

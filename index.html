@@ -32,11 +32,12 @@
     <div id="game-container">
         <!-- Üst Menü / Navbar (Artık Oyun Konteynırı İçinde) -->
         <header class="top-nav">
-            <div class="logo">OKEY 101</div>
+            <div class="logo">101 OKEY PREMIUM</div>
             <div class="nav-actions">
-                <button class="nav-btn" id="new-game-top"><span>🔄</span> YENİ OYUN</button>
-                <button class="nav-btn" id="show-yazboz"><span>📝</span> YAZ-BOZ</button>
-                <button class="nav-btn" id="open-settings"><span>⚙️</span> AYARLAR</button>
+                <button class="nav-btn" id="info-btn" title="Bilgi">ℹ️</button>
+                <button class="nav-btn" onclick="gameState.players.user.hand.length && autoSortSeries()" title="Seri Diz">Seri</button>
+                <button class="nav-btn" onclick="gameState.players.user.hand.length && autoSortPairs()" title="Çift Diz">Çift</button>
+                <button class="nav-btn" id="open-settings">⚙️</button>
             </div>
         </header>
 
@@ -90,15 +91,16 @@
                     </div>
                 </div>
 
-                <!-- Deste ve Gösterge Bölümü (Bağımsız ve Üst Katmanda) -->
-                <div class="center-deck-area">
-                    <div class="deck-pile-wrap">
-                        <div class="deck-pile" id="deck-pile"></div>
-                        <div class="deck-count">20</div>
-                    </div>
-                    <div class="indicator-tile" id="indicator-tile">
-                        <!-- Gösterge taşı buraya gelecek -->
-                    </div>
+            </div>
+
+            <!-- Deste ve Gösterge Bölümü (Masa Dışında, Bağımsız Katman) -->
+            <div class="center-deck-area">
+                <div class="deck-pile-wrap">
+                    <div class="deck-pile" id="deck-pile"></div>
+                    <div class="deck-count">20</div>
+                </div>
+                <div class="indicator-tile" id="indicator-tile">
+                    <!-- Gösterge taşı buraya gelecek -->
                 </div>
             </div>
 
@@ -215,6 +217,48 @@
             </div>
 
             <button class="modal-btn primary" id="save-settings">KAYDET</button>
+        </div>
+    </div>
+
+    <!-- Bilgi (Info) Modalı -->
+    <div id="info-modal" class="modal">
+        <div class="modal-content info-content">
+            <h2 class="scoreboard-title">ℹ️ HAKKINDA</h2>
+            <div class="info-body">
+                <div class="dev-name">Fatih PATIR</div>
+                <div class="dev-portfolio">
+                    <a href="https://fatihpatir.github.io/web" target="_blank">fatihpatir.github.io/web</a>
+                </div>
+                <div class="app-version">Version 4.0 Premium</div>
+                <div class="legal-notice">© 2024 Tüm hakları saklıdır.</div>
+            </div>
+            <button class="modal-btn primary" onclick="document.getElementById('info-modal').style.display='none'">KAPAT</button>
+        </div>
+    </div>
+
+    <!-- PWA Install Overlay (Sadece Tarayıcıda Açılınca Görünür) -->
+    <div id="pwa-install-overlay">
+        <div class="install-card">
+            <div class="install-logo">🀄</div>
+            <h2>101 OKEY PREMIUM</h2>
+            <p id="install-text">Hemen ana ekrana ekle ve sınırsız oyun keyfini yaşa!</p>
+            
+            <!-- Android / Chrome / Edge için Buton -->
+            <button id="pwa-install-btn" class="install-btn">HEMEN YÜKLE</button>
+            
+            <!-- iOS için Yönerge (JS ile gösterilecek) -->
+            <div id="ios-guide" class="ios-guide-hidden">
+                <div class="ios-instruction">
+                    <span>1. Alttaki <strong>Paylaş</strong> (Share) ikonuna bas:</span>
+                    <span class="ios-icon">📤</span>
+                </div>
+                <div class="ios-instruction">
+                    <span>2. <strong>Ana Ekrana Ekle</strong> (Add to Home Screen) seç:</span>
+                    <span class="ios-icon">➕</span>
+                </div>
+            </div>
+            
+            <button id="close-install" class="close-install-btn">Tarayıcıda Devam Et</button>
         </div>
     </div>
 
