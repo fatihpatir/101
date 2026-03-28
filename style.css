@@ -2000,8 +2000,7 @@ body.dragging-mode .discard-zone#discard-user {
 }
 
 /* --- HER ZAMAN YATAY (PUBG TARZI) ---
-   Portrait'te container'ı 90° döndür, tam ekran doldur.
-   Matematiksel formül: rotate(90deg) translateY(-100%) */
+   Portrait'te container 90° döner, tam ekran doldurur. */
 @media screen and (orientation: portrait) {
     body {
         overflow: hidden;
@@ -2011,11 +2010,9 @@ body.dragging-mode .discard-zone#discard-user {
         position: fixed;
         top: 0;
         left: 0;
-        /* Ekran boyutlarını ters çevir */
-        width: 100svh;
-        height: 100svw;
+        width: 100vh;          /* svh DEĞİL - evrensel destek için vh */
+        height: 100vw;         /* svw DEĞİL - evrensel destek için vw */
         transform-origin: top left;
-        /* Rotate 90° CW, sonra yukarı kaydır → tam doluşum */
         transform: rotate(90deg) translateY(-100%);
         overflow: hidden;
     }
