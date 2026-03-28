@@ -374,17 +374,18 @@ body {
     padding: 1px !important;
 }
 
-/* Masa alanını yatayda akıcı yap */
+/* Masa alanını çoklu satıra izin verecek hale getir (Wrap Kesin Çözüm) */
 #series-field,
 #pairs-field {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    /* Yan yana aksın */
-    overflow-x: auto;
-    padding-bottom: 5px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 215, 0, 0.2) transparent;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important; /* nowrap'tan wrap'e kesin geçiş */
+    gap: 12px !important;
+    width: 100% !important;
+    padding: 10px;
+    box-sizing: border-box;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
 }
 
 .tile-face.back {
@@ -2174,27 +2175,8 @@ body.dragging-mode .discard-zone#discard-user {
     margin-top: 5px;
 }
 
-/* --- YENİ STİLLER: AKTİF SIRA PARLAMASI --- */
-.active-turn {
-    animation: turn-glow-only 2s infinite ease-in-out !important;
-}
+/* Excess styles removed to fix over-glow issues */
 
-.nav-btn.icon-only {
-    padding: 3px 5px !important;
-    font-size: 0.7rem;
-    min-width: 24px;
-}
-
-#player-user.active-turn .rack-wrapper {
-    box-shadow: 0 0 40px #ffd700 !important;
-    outline: 3px solid #ffd700 !important;
-    border: none !important;
-}
-
-.player-slot.active-turn .bot-rack {
-    box-shadow: 0 0 30px #ffd700 !important;
-    border-color: #ffd700 !important;
-}
 
 /* Bilgi (Info) Modalı */
 .info-content {

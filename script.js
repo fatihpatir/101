@@ -1400,13 +1400,22 @@ function renderDiscardZone(playerId) {
 
         if (isLastInThisZone && isMostRecentDiscard && isCurrentPlayerUser && !gameState.hasDrawn) {
             tileEl.classList.add('stealable-tile');
-            tileEl.title = 'Bu taşı çalmak için tıkla!';
+            tileEl.title = 'Taşı çalmak için dokun!';
             tileEl.style.cursor = 'grab';
-            tileEl.onclick = (e) => { e.stopPropagation(); attemptStealDiscard(); };
+            
+            // Hem tıklama hem dokunma olaylarını dinle (Mobilde daha stabil)
+            const handleSteal = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                attemptStealDiscard();
+            };
+            tileEl.onclick = handleSteal;
+            tileEl.addEventListener('touchend', handleSteal, { passive: false });
         }
         zone.appendChild(tileEl);
     });
 }
+
 
 function attemptStealDiscard() {
     if (!gameState.lastDiscard) return;
