@@ -641,13 +641,17 @@ body {
 }
 
 #series-section {
-    flex: 0 0 82%;
+    flex: 0 0 78%;
+    max-width: 78%;
     border-right: 2px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden; /* Taşmayı engelle */
 }
 
 #pairs-section {
-    flex: 0 0 18%;
+    flex: 0 0 22%;
+    max-width: 22%;
     background: rgba(0, 0, 0, 0.1);
+    overflow: hidden;
 }
 
 /* Başlık Etiketleri */
@@ -668,11 +672,11 @@ body {
     position: relative;
     padding: 5px;
     display: flex;
-    flex-direction: column; /* Alt alta dizilim */
-    flex-wrap: wrap; /* Yan sütuna geç */
+    flex-direction: row; /* Yan yana dizilim yatay aks */
+    flex-wrap: wrap; /* Sığmazsa bir alt satıra geç (YANİ ALT ALTA GEL) */
     align-content: flex-start;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: auto; /* Aşağı kaydırma açılsın */
+    overflow-x: hidden; /* Sağa taşma tamamen kapatılsın */
     scrollbar-width: none;
     -ms-overflow-style: none;
     gap: 6px;
@@ -1393,10 +1397,10 @@ body.dragging-mode .pair-group::after {
     .bot-rack-top { width: 140px; height: 26px; }
     .bot-rack-left, .bot-rack-right { width: 26px; height: 140px; }
 
-    /* Botları Kaydırma (Menülerle / Adalarla Çakışmasın) */
-    .player-slot.top { top: calc(26px + env(safe-area-inset-top, 0px)); } /* Üst menünün hemen altına */
-    .player-slot.left { left: max(-8px, calc(-8px + env(safe-area-inset-left, 0px))); } /* Masanın sınırına tam sıfır noktasına ittim */
-    .player-slot.right { right: max(-8px, calc(-8px + env(safe-area-inset-right, 0px))); }
+    /* Botları Kaydırma (Adaları Tamamen Yoksay) */
+    .player-slot.top { top: 2px !important; } /* Deniz'i en tavana yasla */
+    .player-slot.left { left: -14px !important; } /* Samet'i sola tamamen it (ekran çentiğine rağmen) */
+    .player-slot.right { right: -14px !important; } /* Sinem'i sağa tamamen it */
 
     /* İsim Etiketleri Küçült */
     .name-tag { font-size: 0.6rem; padding: 2px 8px; }
