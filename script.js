@@ -1698,16 +1698,24 @@ function autoSortPairs() {
 
 // --- DOM LİSTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Otomatik Ekran Döndürme Denemesi (PWA Dostu)
+    // Yatay Ekran Kilidi (PWA + Tarayıcı uyumlu)
     const tryLockOrientation = () => {
-        if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('landscape').catch(err => {
-                console.log("Oryantasyon kilidi denendi (PWA/Tam ekran gerekli):", err.message);
-            });
-        }
+        try {
+            if (screen.orientation && screen.orientation.lock) {
+                // Önce landscape-primary dene, olmazsa genel landscape
+                screen.orientation.lock('landscape-primary').catch(() => {
+                    screen.orientation.lock('landscape').catch(() => {
+                        // Kilitleyemedik ama CSS rotation devreye girecek
+                    });
+                });
+            }
+        } catch(e) { /* Sessizce geç */ }
     };
     tryLockOrientation();
-    window.addEventListener('resize', tryLockOrientation); // Ekran değişiminde tekrar dene
+    // Görünürlük değişince (PWA arka planadan gelince) tekrar kilitle
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) tryLockOrientation();
+    });
 
     // Statik Butonlar
     const btnDraw = document.getElementById('btn-draw-stone');
@@ -1809,17 +1817,44 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
     });
 
-    // Deste Sürükleme
+    // Deste Sürükleme ve Tıklama
     const deckPile = document.getElementById('deck-pile');
     if (deckPile) {
         deckPile.draggable = true;
+
+        // PC'de tıklayınca taş çek
+        deckPile.addEventListener('click', () => {
+            handleDraw(-1);
+        });
+
         deckPile.addEventListener('dragstart', (e) => { e.dataTransfer.setData('source', 'deck'); });
+
+        // Mobil'de dokunup bırakınca taş çek (phantom oluşturmadan basit tap)
+        let deckTouchStartTime = 0;
+        let deckTouchMoved = false;
         deckPile.addEventListener('touchstart', (e) => {
+            deckTouchStartTime = Date.now();
+            deckTouchMoved = false;
             if (gameState.turnOrder[gameState.currentTurnIndex] === 'user' && !gameState.hasDrawn) {
                 gameState.touch.sourceType = 'deck';
                 createPhantom(deckPile);
             }
-        }, { passive: false });
+        }, { passive: true });
+        deckPile.addEventListener('touchmove', () => { deckTouchMoved = true; }, { passive: true });
+        deckPile.addEventListener('touchend', (e) => {
+            const duration = Date.now() - deckTouchStartTime;
+            // Kısa dokunuşsa (sürükleme değilse) direkt taş çek
+            if (duration < 300 && !deckTouchMoved) {
+                if (gameState.touch.phantom) {
+                    gameState.touch.phantom.remove();
+                    gameState.touch.phantom = null;
+                }
+                gameState.touch.sourceType = null;
+                handleDraw(-1);
+                return;
+            }
+        }, { passive: true });
+
         window.addEventListener('touchmove', (e) => {
             if (gameState.touch.phantom) {
                 const t = e.touches[0];

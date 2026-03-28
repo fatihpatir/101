@@ -1,4 +1,4 @@
-const CACHE_NAME = 'okey-101-v3';
+const CACHE_NAME = 'okey-101-v4';
 const urlsToCache = [
     './',
     './index.html',
