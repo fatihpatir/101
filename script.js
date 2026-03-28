@@ -960,8 +960,11 @@ function updateTurnUI() {
         el.classList.remove('active-turn');
     });
 
-    // Aktif olanı vurgula
-    const playerElId = currentId === 'user' ? 'player-user' : currentId;
+    // Aktif olanı vurgula (ID Eşleştirme: bot1 -> bot-1)
+    let playerElId = currentId;
+    if (currentId === 'user') playerElId = 'player-user';
+    else if (currentId.startsWith('bot')) playerElId = currentId.replace('bot', 'bot-');
+    
     const playerEl = document.getElementById(playerElId);
     
     if (playerEl) {

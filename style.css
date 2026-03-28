@@ -213,26 +213,33 @@ body {
     height: 250px;
 }
 
-/* Aktif Sıra Göstergesi (Sadece Parlama - Hareket Yok) */
-.player-slot.active-turn .bot-rack {
-    box-shadow: 0 0 25px #ffd700;
-    border-color: #ffd700;
+/* Sırası Gelen Oyuncunun Istakası Parlasın (Premium & Soft) */
+@keyframes rack-glow-pulse {
+    0% {
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 35px rgba(255, 215, 0, 0.7);
+        border-color: #ffd700;
+    }
+    100% {
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+    }
 }
 
-.player-slot.active-turn .name-tag {
-    color: #ffd700;
-    text-shadow: 0 0 12px #ffd700;
-}
-
-/* Kullanıcı Sırası Gelince Istaka Parlasın */
+.player-slot.active-turn .bot-rack,
 #player-user.active-turn .rack-wrapper {
-    box-shadow: 0 0 35px #ffd700;
-    border-color: #ffd700;
+    animation: rack-glow-pulse 1.8s infinite ease-in-out !important;
+    border: 2px solid #ffd700 !important;
+    z-index: 100;
 }
 
-#player-user.active-turn .user-name {
-    color: #ffd700;
-    text-shadow: 0 0 15px #ffd700;
+.active-turn .name-tag {
+    color: #fff !important;
+    background: #e65100 !important; /* Daha yumuşak turuncu/altın geçiş */
+    text-shadow: 0 0 8px #fff;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+    transform: scale(1.1) !important;
 }
 
 .name-tag {
@@ -257,6 +264,15 @@ body {
 
 .bot-rack-right .name-tag {
     transform: rotate(90deg);
+}
+
+/* Sıra onlara gelince rotasyonu koruyarak büyü (Yamulmasın!) */
+.player-slot.left.active-turn .name-tag {
+    transform: rotate(-90deg) scale(1.15) !important;
+}
+
+.player-slot.right.active-turn .name-tag {
+    transform: rotate(90deg) scale(1.15) !important;
 }
 
 /* Atılan Taş Bölgeleri (Minimalist Yuva) - Sadece referans, pozisyonlar inline konteynerlarda */
@@ -504,27 +520,25 @@ body {
 }
 
 
-/* Orta Deste ve Gösterge Alanı (Öncelikli Katman) */
+/* Deste ve Gösterge (En Stratejik Nokta: Seriler & Çiftler Birleşim Üstü) */
 .center-deck-area {
     position: absolute;
-    bottom: 25px;
-    /* Alt sınırdan biraz daha yukarı aldık (overlap önleme) */
-    right: 25px;
-    /* Sağ sınırdan biraz daha içeri aldık */
-    display: flex;
-    gap: 8px;
+    top: 12%; 
+    left: 76%; /* Seriler (%75) ve Çiftler'in birleşim noktası */
+    transform: translateX(-50%);
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 12px;
     align-items: center;
-    z-index: 2000 !important;
-    /* Istakanın üzerine çıkarma garantisi */
-    background: rgba(0, 0, 0, 0.4);
-    padding: 10px 12px;
-    border-radius: 8px;
-    box-shadow:
-        0 4px 15px rgba(0, 0, 0, 0.5),
-        inset 0 1px 2px rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 215, 0, 0.2);
+    z-index: 2100 !important;
+    background: rgba(0, 0, 0, 0.75);
+    padding: 6px 14px;
+    border-radius: 10px;
+    border: 1.5px solid #ffd700;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
     pointer-events: auto !important;
 }
+
 
 /* Taş Destesi (Görünür Taş) */
 .deck-pile {
@@ -615,11 +629,11 @@ body {
 
 .center-grid-container {
     position: absolute;
-    top: 38%;
+    top: 36%; /* 38%'den 36%'ya çekildi (Yukarı kaydırıldı) */
     left: 50%;
     transform: translate(-50%, -50%);
     width: 96%;
-    height: 60%;
+    height: 55%; /* 60%'dan 55%'e çekildi (Yer açıldı) */
     z-index: 5;
     display: flex;
     flex-direction: row; /* Yan yana dizilim */
@@ -1128,7 +1142,7 @@ body.dragging-mode .pair-group::after {
 /* User Rack Area Wrapper */
 .user-bottom {
     position: absolute;
-    bottom: max(5px, env(safe-area-inset-bottom, 5px));
+    bottom: max(1px, env(safe-area-inset-bottom, 1px)); /* 5px'den 1px'e çekildi - En Alt */
     left: env(safe-area-inset-left, 0px);
     right: env(safe-area-inset-right, 0px);
     display: flex;
@@ -1394,38 +1408,8 @@ body.dragging-mode .pair-group::after {
         z-index: 5;
     }
 
-    /* Desteyi Serilerin Kendi İçinde Sağ Alt Köşeye Sabitle */
-    .center-deck-area {
-        position: absolute;
-        bottom: 0px;
-        right: 0px;
-        transform: scale(0.65);
-        transform-origin: bottom right;
-        z-index: 100;
-        background: rgba(0, 0, 0, 0.4); 
-        padding: 5px;
-        border-radius: 6px 0 0 0; /* Sadece içe bakan köşeyi yuvarla */
-        border: 1px solid rgba(255,215,0,0.1);
-        pointer-events: auto !important;
-    }
-
-    /* Deste kutusunu butonlardan uzaklaştır (Sol-Alt yerine artık Seriler kutusunun içinde ama kenardan açık tursun) */
-    /* Deste ve Gösterge (Sağ Alt Köşe) */
-    .center-deck-area {
-        position: absolute;
-        bottom: 0px;
-        right: 0px;
-        transform: scale(0.65);
-        transform-origin: bottom right;
-        z-index: 100;
-        background: rgba(0, 0, 0, 0.4); 
-        padding: 5px;
-        border-radius: 6px 0 0 0;
-        border: 1px solid rgba(255,215,0,0.1);
-        pointer-events: auto !important;
-    }
-
     /* ISKATA ALANLARI (Istakalara Sabitlenmiş Stabil Düzen) */
+
     .static-side-discard {
         position: absolute;
         width: 34px;
@@ -1543,16 +1527,16 @@ body.dragging-mode .pair-group::after {
         line-height: 1;
     }
 
-    /* KRİTİK DÜZELTME: Puan ve Çift İstatistikleri (Butonların Yanı) */
+    /* KRİTİK DÜZELTME: Puan ve Çift İstatistikleri (Fatih Yazısının Soluna Alındı) */
     .hand-stats {
         position: absolute;
-        top: -2px;   /* Fatih yazısının hizasına ince ayar */
+        top: -2px;   
         left: 50%;
-        margin-left: 55px; /* Çakışmayı önlemek için biraz daha sağa itildi */
+        margin-left: -165px; /* İsim etiketinin soluna taşıyarak çakışmayı önledik */
         padding: 4px 10px;
-        transform: scale(0.75); /* Daha kibar dursun */
-        transform-origin: left center;
-        background: rgba(0,0,0,0.85); /* Arka plan belirginleştirildi */
+        transform: scale(0.75); 
+        transform-origin: right center; /* Sola doğru yaslansın */
+        background: rgba(0,0,0,0.85); 
         z-index: 2000;
         pointer-events: none;
     }
@@ -1563,18 +1547,38 @@ body.dragging-mode .pair-group::after {
         height: 40px;
     }
 
-    /* DESTE VE GÖSTERGE (Istaka Büyüdüğü İçin Hafif Yukarı Kaydırıldı) */
+    /* MOBİL VE KÜÇÜK EKRANLARDA DESTE ALANI (Birleşim Noktası) */
     .center-deck-area {
-        bottom: 12px;
-        right: 12px;
-        padding: 6px 10px;
-        transform: scale(0.65);
-        transform-origin: bottom right;
-        gap: 6px;
-        background: rgba(0, 0, 0, 0.6);
-        border: 1px solid rgba(255, 215, 0, 0.2);
+        position: absolute;
+        top: 12%;
+        left: 75%;
+        transform: translateX(-50%) scale(0.7);
+        transform-origin: top center;
+        padding: 4px 10px;
+        gap: 8px;
+        z-index: 5000;
+        background: rgba(0, 0, 0, 0.82);
+        flex-direction: row !important;
+        display: flex !important;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 215, 0, 0.3);
     }
+
+    .deck-pile-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .indicator-tile {
+        width: 24px;
+        height: 36px;
+    }
+    
+    .deck-count { font-size: 0.75rem; }
 }
+
 
 /* VERY Small Mobile Landscape (Daha dar telefonlar) */
 @media (max-width: 700px) and (orientation: landscape) {
