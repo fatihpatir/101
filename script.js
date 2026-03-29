@@ -270,6 +270,25 @@ function renderTable() {
                 groupEl.appendChild(postSlot);
             }
 
+            // --- HİBRİT İŞLEME MANTIĞI: Hem Tıkla-İşle Hem Sürükle-Bırak ---
+            groupEl.onclick = (e) => {
+                if (gameState.selectedTileIds.size === 1) {
+                    const tileId = [...gameState.selectedTileIds][0];
+                    handleProcessTile(tileId, groupIdx, owner);
+                }
+            };
+
+            groupEl.ondragover = (e) => { e.preventDefault(); groupEl.classList.add('drag-over-group'); };
+            groupEl.ondragleave = () => groupEl.classList.remove('drag-over-group');
+            groupEl.ondrop = (e) => {
+                e.preventDefault();
+                groupEl.classList.remove('drag-over-group');
+                const tileId = e.dataTransfer.getData('tileId');
+                if (tileId) handleProcessTile(tileId, groupIdx, owner);
+            };
+
+
+
             if ((group.length === 2 || (isSet && group.length === 2)) && pairsField) {
                 pairsField.appendChild(groupEl);
             } else if (seriesField) {
@@ -1069,16 +1088,29 @@ async function botPlay() {
     const botId = gameState.turnOrder[gameState.currentTurnIndex];
     const bot = gameState.players[botId];
 
-    // 1. Çekme Kararı (Şimdilik hep desteden çeksin, çalma mantığı sonra eklenecek)
+    // 1. Çekme Kararı (Animasyonlu)
     if (bot.hand.length < 22 && gameState.deck.length > 0) {
-        bot.hand.push(gameState.deck.pop());
+        const pulledTile = gameState.deck.pop();
+        const deckEl = document.getElementById('deck-pile');
+        const botHtmlId = botId.includes('bot') ? botId.replace('bot', 'bot-') : botId;
+        const botEl = document.querySelector(`#${botHtmlId} .name-tag`);
+        
+        if (deckEl && botEl) {
+            await animateTileMovement(deckEl, botEl, pulledTile, true); // Bot çekerken taş kapalı (true)
+        }
+
+
+        
+        bot.hand.push(pulledTile);
         updateDeckCount();
+        renderAll();
     }
 
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 600));
 
     // 2. Eli Değerlendir
     let { complete, pairs, potential, leftovers } = findGroups(bot.hand);
+
 
     // 3. El Açma Mantığı
     if (!bot.hasOpened) {
@@ -1086,39 +1118,61 @@ async function botPlay() {
         let totalPairs = pairs.length;
 
         if (totalPts >= 101 && bot.openedType !== 'pairs') {
-            // Seri Aç
-            complete.forEach(group => {
+            // Seri Aç (Animasyonlu)
+            for (const group of complete) {
+                const botEl = document.querySelector(`#${botId.replace('bot', 'bot-')} .name-tag`);
+                const targetArea = document.getElementById('series-field');
+                if (botEl && targetArea) {
+                    await animateTileMovement(botEl, targetArea, group[0]); // Sembolik olarak ilk taşla animasyon
+                }
                 gameState.table[botId].push(group);
-                // Hand'den sil
                 group.forEach(t => removeTileFromList(bot.hand, t));
-            });
+                renderAll();
+                await new Promise(r => setTimeout(r, 200));
+            }
             bot.hasOpened = true;
             bot.openedType = 'series';
             showGameMessage(`${bot.name} seriden açtı! 🚀`);
         } else if (bot.openedType === 'series' && gameState.pairsOpened && pairs.length > 0) {
             // Seri açmış bir bot, eğer çift alanı aktifse kalan çiftlerini insin
-            pairs.forEach(pair => {
+            for (const pair of pairs) {
+                const botEl = document.querySelector(`#${botId.replace('bot', 'bot-')} .name-tag`);
+                const targetArea = document.getElementById('pairs-field');
+                if (botEl && targetArea) {
+                    await animateTileMovement(botEl, targetArea, pair[0]);
+                }
                 gameState.table[botId].push(pair);
                 pair.forEach(t => removeTileFromList(bot.hand, t));
-            });
+                renderAll();
+                await new Promise(r => setTimeout(r, 200));
+            }
             showGameMessage(`${bot.name} elindeki çiftleri döküyor! 🔥`);
         } else if (!bot.hasOpened && totalPairs >= 5 && !gameState.pairsOpened) {
-            // Çift Aç
-            pairs.forEach(pair => {
+            // Çift Aç (Animasyonlu)
+            for (const pair of pairs) {
+                const botEl = document.querySelector(`#${botId.replace('bot', 'bot-')} .name-tag`);
+                const targetArea = document.getElementById('pairs-field');
+                if (botEl && targetArea) {
+                    await animateTileMovement(botEl, targetArea, pair[0]);
+                }
                 gameState.table[botId].push(pair);
                 pair.forEach(t => removeTileFromList(bot.hand, t));
-            });
+                renderAll();
+                await new Promise(r => setTimeout(r, 200));
+            }
             bot.hasOpened = true;
             bot.openedType = 'pairs';
             gameState.pairsOpened = true;
             showGameMessage(`${bot.name} çiftten açtı! 🔥`);
         }
+
     }
 
     // 4. İşleme Mantığı (Eğer açmışsa veya başkası açmışsa - Basitleştirilmiş)
     if (bot.hasOpened) {
-        botProcessTiles(botId);
+        await botProcessTiles(botId);
     }
+
 
     await new Promise(r => setTimeout(r, 600));
 
@@ -1167,10 +1221,19 @@ async function botPlay() {
             showGameMessage(`${bot.name} işlek taş attı! +101 Ceza! 🔴`);
         }
 
-        // Hand'den çıkar ve at
+        // Hand'den çıkar ve at (Animasyonlu)
         const idx = bot.hand.findIndex(t => t.id === tileToDiscard.id);
         if (idx !== -1) bot.hand.splice(idx, 1);
+        
+        const botEl = document.querySelector(`#${botId.replace('bot', 'bot-')} .name-tag`);
+        const discardEl = document.getElementById(`discard-${botId.replace('bot', 'bot-')}`);
+        
+        if (botEl && discardEl) {
+            await animateTileMovement(botEl, discardEl, tileToDiscard);
+        }
+
         renderDiscard(botId, tileToDiscard);
+
         
         if (bot.hand.length === 0) {
             finishRound(botId, tileToDiscard);
@@ -1182,7 +1245,7 @@ async function botPlay() {
     nextTurn();
 }
 
-function botProcessTiles(botId) {
+async function botProcessTiles(botId) {
     const bot = gameState.players[botId];
     let changed = true;
     
@@ -1229,15 +1292,31 @@ function botProcessTiles(botId) {
                         }
                     }
                 }
+            });
+        });
 
-                // --- NORMAL İŞLEME ---
-                if (!changed) {
-                    for (let i = 0; i < bot.hand.length; i++) {
-                        const tile = bot.hand[i];
+        // --- NORMAL İŞLEME ---
+        if (!changed) {
+            const leftovers = findGroups(bot.hand).leftovers;
+            const owners = ['user', 'bot1', 'bot2', 'bot3'];
+            for (const owner of owners) {
+                const tableGroups = gameState.table[owner] || [];
+                for (let gIdx = 0; gIdx < tableGroups.length; gIdx++) {
+                    const group = tableGroups[gIdx];
+                    for (let i = 0; i < leftovers.length; i++) {
+                        const tile = leftovers[i];
                         if (isValidAddition(tile, group)) {
-                            // Seri ise başa mı sona mı eklendiğini bul
+                            // Animasyon: Bot'un isminden Masadaki Per'e
+                            const botHtmlId = botId.includes('bot') ? botId.replace('bot', 'bot-') : botId;
+                            const botEl = document.querySelector(`#${botHtmlId} .name-tag`);
+                            const targetEl = document.querySelector(`.table-group[data-owner="${owner}"][data-index="${gIdx}"]`);
+                            
+                            if (botEl && targetEl) {
+                                await animateTileMovement(botEl, targetEl, tile);
+                            }
+
+
                             if (getRunPoints(group) > 0) {
-                                const baseColor = group.find(t => !isWildCard(t))?.color;
                                 const nums = group.filter(t => !isWildCard(t)).map(t => t.number);
                                 const min = Math.min(...nums);
                                 if (!isWildCard(tile) && tile.number < min) group.unshift(tile);
@@ -1245,15 +1324,16 @@ function botProcessTiles(botId) {
                             } else {
                                 group.push(tile);
                             }
-                            bot.hand.splice(i, 1);
-                            logDebug(`${bot.name} masaya taş işledi: ${tile.number} ${tile.color}`);
+                            bot.hand = bot.hand.filter(t => t.id !== tile.id);
                             changed = true;
-                            i--; 
+                            i--;
+                            renderAll();
                         }
                     }
                 }
-            });
-        });
+            }
+        }
+
     }
 }
 
@@ -1380,18 +1460,39 @@ function renderDiscardZone(playerId) {
         tileEl.style.position = 'absolute';
         tileEl.style.zIndex = index + 10; // Her zaman üstte kalsın
         
-        // Yığını sınırla ve daha stabil yap (max 10 taş görseli yığın hissi için yeterli)
         const visualIndex = Math.min(index, 10);
-        if (!zone.classList.contains('expanded')) {
-            tileEl.style.top = `${visualIndex * 1.5}px`; // Biraz daha görünür yığın (kaybolmaması için)
+        const isPeeking = zone.classList.contains('peeking');
+
+        if (!isPeeking) {
+            tileEl.style.top = `${visualIndex * 1.5}px`; 
             tileEl.style.left = `${visualIndex * 0.8}px`;
             tileEl.style.transform = 'scale(0.9)';
+            tileEl.style.position = 'absolute';
         } else {
-            tileEl.style.top = '0px';
-            tileEl.style.left = `${index * 32}px`;
-            tileEl.style.transform = 'scale(1)';
-            tileEl.style.zIndex = index + 1000;
+            // --- PEKİŞTİRİLMİŞ YÖN MANTIĞI ---
+            tileEl.style.position = 'absolute';
+            tileEl.style.left = '0px';
+            tileEl.style.transform = 'scale(1.2)';
+            tileEl.style.zIndex = index + 10000;
+
+            const isBottomPlayer = (playerId === 'user' || playerId === 'bot1');
+            const offset = 55; // Kullanıcının beğendiği o net boşluk
+            
+            if (isBottomPlayer) {
+                // Senin (Sağ/Sol) taşların kesinlikle YUKARI açılır
+                tileEl.style.top = `${-index * offset}px`; 
+            } else {
+                // Diğerlerinin (Üst) taşları AŞAĞI dökülür
+                tileEl.style.top = `${index * offset}px`; 
+            }
         }
+
+
+
+
+
+
+
 
         // Çalınabilir taş: yığının en üstündeki taş, sıra bizde ve henüz çekmedik
         const isLastInThisZone = index === all.length - 1;
@@ -1403,8 +1504,10 @@ function renderDiscardZone(playerId) {
             tileEl.title = 'Taşı çalmak için dokun!';
             tileEl.style.cursor = 'grab';
             
-            // Hem tıklama hem dokunma olaylarını dinle (Mobilde daha stabil)
             const handleSteal = (e) => {
+                // Eğer peeking aktifse (uzun basılı tutulmuşsa) çalma, pas geç
+                if (zone.classList.contains('peeking')) return;
+                
                 e.preventDefault();
                 e.stopPropagation();
                 attemptStealDiscard();
@@ -1412,9 +1515,38 @@ function renderDiscardZone(playerId) {
             tileEl.onclick = handleSteal;
             tileEl.addEventListener('touchend', handleSteal, { passive: false });
         }
+
         zone.appendChild(tileEl);
     });
+
+    // --- BASILI TUT VE GÖR (Hold-to-Peek) MANTIĞI ---
+    let peekTimer;
+    const startPeek = () => {
+        peekTimer = setTimeout(() => {
+            zone.classList.add('peeking');
+            renderDiscardZone(playerId); // Taşları yayarak tekrar çiz
+        }, 300); // 300ms basılı tutunca açılsın
+    };
+    const endPeek = () => {
+        clearTimeout(peekTimer);
+        if (zone.classList.contains('peeking')) {
+            zone.classList.remove('peeking');
+            renderDiscardZone(playerId); // Eski haline döndür
+        }
+    };
+
+    zone.onmousedown = startPeek;
+    zone.onmouseup = endPeek;
+    zone.onmouseleave = endPeek;
+    zone.addEventListener('touchstart', (e) => { 
+        // preventDefault YAPMIYORUZ ki altındaki taşların dokunma olayları çalışsın
+        startPeek(); 
+    }, { passive: true });
+    zone.addEventListener('touchend', endPeek);
+    zone.addEventListener('touchcancel', endPeek);
 }
+
+
 
 
 function attemptStealDiscard() {
@@ -1632,6 +1764,47 @@ function showGameMessage(msg) {
 }
 
 // Debug console removed
+
+// --- GÖRSEL EFEKTLER VE ANİMASYONLAR ---
+async function animateTileMovement(startEl, endEl, tile, isFlipped = false) {
+    if (!startEl || !endEl || !tile) return;
+    
+    const startRect = startEl.getBoundingClientRect();
+    const endRect = endEl.getBoundingClientRect();
+    
+    // Geçici olarak taşın durumunu ayarla (Çekerken kapalı, işlerken açık)
+    const originalFlipped = tile.isFlipped;
+    tile.isFlipped = isFlipped;
+    const ghost = tile.createHTMLElement(true);
+    tile.isFlipped = originalFlipped; // Orijinali bozma
+    
+    ghost.style.position = 'fixed';
+    ghost.style.left = `${startRect.left}px`;
+    ghost.style.top = `${startRect.top}px`;
+    ghost.style.width = '32px';    /* Boyut sabitlendi */
+    ghost.style.height = '48px';   /* Boyut sabitlendi */
+    ghost.style.zIndex = '100000';
+    ghost.style.transition = 'all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.boxShadow = '0 5px 15px rgba(0,0,0,0.5)';
+    ghost.style.borderRadius = '4px';
+    
+    document.body.appendChild(ghost);
+    
+    // Reflow
+    void ghost.offsetWidth;
+    
+    ghost.style.left = `${endRect.left + (endRect.width/2 - 16)}px`;
+    ghost.style.top = `${endRect.top + (endRect.height/2 - 24)}px`;
+    
+    return new Promise(resolve => {
+        setTimeout(() => {
+            ghost.remove();
+            resolve();
+        }, 650);
+    });
+}
+
 
 function logDebug(msg) { console.log("[101]", msg); }
 
@@ -2038,12 +2211,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.discard-zone').forEach(zone => {
         const getPID = (z) => z.id.replace('discard-', '').replace('bot-', 'bot');
         const toggleExpand = () => {
-            const isExpanded = zone.classList.contains('expanded');
-            // Önce hepsini kapat (aynı anda sadece biri açık olsun)
-            document.querySelectorAll('.discard-zone').forEach(z => z.classList.remove('expanded'));
-            if (!isExpanded) zone.classList.add('expanded');
-            
-            // Tüm alanları render et ki z-index ve pozisyonlar güncellensin
+            const isPeeking = zone.classList.contains('peeking');
+            document.querySelectorAll('.discard-zone').forEach(z => z.classList.remove('peeking'));
+            if (!isPeeking) {
+                zone.classList.add('peeking');
+                const pId = getPID(zone);
+                const tiles = zone.querySelectorAll('.tile');
+                tiles.forEach((t, idx) => {
+                    t.style.position = 'absolute';
+                    if (zone.classList.contains('top')) t.style.top = (idx * 55) + 'px';
+                    else t.style.top = (-idx * 55) + 'px';
+                });
+            }
             renderAllDiscardZones();
         };
 

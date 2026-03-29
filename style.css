@@ -214,33 +214,29 @@ body {
 }
 
 /* Sırası Gelen Oyuncunun Istakası Parlasın (Premium & Soft) */
-@keyframes rack-glow-pulse {
-    0% {
-        box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-    }
-    50% {
-        box-shadow: 0 0 35px rgba(255, 215, 0, 0.7);
-        border-color: #ffd700;
-    }
-    100% {
-        box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-    }
+/* SADE SARI ÇERÇEVE DÜZENİ (Glow Kaldırıldı) */
+@keyframes rack-border-pulse {
+    0% { border-color: rgba(255, 215, 0, 0.4); }
+    50% { border-color: rgba(255, 215, 0, 1); }
+    100% { border-color: rgba(255, 215, 0, 0.4); }
 }
 
 .player-slot.active-turn .bot-rack,
 #player-user.active-turn .rack-wrapper {
-    animation: rack-glow-pulse 1.8s infinite ease-in-out !important;
-    border: 2px solid #ffd700 !important;
+    animation: rack-border-pulse 2s infinite ease-in-out !important;
+    border: 3px solid #ffd700 !important; /* Glow yerine net çerçeve */
+    box-shadow: none !important;
     z-index: 100;
 }
 
 .active-turn .name-tag {
     color: #fff !important;
-    background: #e65100 !important; /* Daha yumuşak turuncu/altın geçiş */
-    text-shadow: 0 0 8px #fff;
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+    background: #e65100 !important;
+    border: 2px solid #ffd700 !important; /* Net sarı çerçeve */
+    box-shadow: none !important; /* Gölgeli parlama kaldırıldı */
     transform: scale(1.1) !important;
 }
+
 
 .name-tag {
     color: rgba(255, 215, 0, 0.4);
@@ -374,15 +370,15 @@ body {
     padding: 1px !important;
 }
 
-/* Masa alanını çoklu satıra izin verecek hale getir (Sıkıştırılmış Düzen) */
+/* Masa alanını çoklu satıra izin verecek hale getir (Maksimum Sıkıştırma) */
 #series-field,
 #pairs-field {
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: wrap !important;
-    gap: 4px !important;
+    gap: 2px !important; /* Minimum boşluk */
     width: 100% !important;
-    padding: 5px;
+    padding: 2px;
     box-sizing: border-box;
     overflow-y: auto !important;
     overflow-x: hidden !important;
@@ -687,16 +683,17 @@ body {
 .field-area {
     flex-grow: 1;
     position: relative;
-    padding: 2px 5px !important; /* Üst padding iyice kısıldı */
+    padding: 1px 2px !important; /* Maksimum sıkıştırma */
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: wrap !important;
-    align-content: flex-start !important; /* En üstten başla */
+    align-content: flex-start !important; 
     justify-content: flex-start !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
-    gap: 4px !important; /* Satırlar arası boşluk daraltıldı */
+    gap: 2px !important; /* Satırlar arası minimum mesafe */
 }
+
 
 
 .field-area::-webkit-scrollbar {
@@ -706,13 +703,13 @@ body {
 .table-group {
     display: flex;
     align-items: center;
-    gap: 1px;
-    background: rgba(255, 255, 255, 0.04);
-    padding: 2px 4px; /* Sıkıştırıldı */
-    border-radius: 4px;
+    gap: 0px; /* Taşlar birbirine yapışık */
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1px 2px; /* İç boşluk minimum */
+    border-radius: 3px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    margin: 2px; /* Dış boşluk iyice kısıldı */
-    transition: all 0.3s ease;
+    margin: 1px; /* Gruplar arası mesafe minimum */
+    transition: all 0.2s ease;
     min-width: min-content;
 }
 
@@ -1434,7 +1431,30 @@ body.dragging-mode .pair-group::after {
         margin-top: -24px;
         overflow: visible !important; /* Taşlar dışarı taşabilmeli */
         box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
+
+    /* PEEKING (Basılı Tutunca Açılma) - SADE YELPAZE MANTIĞI */
+    .static-side-discard.peeking {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        z-index: 100000 !important;
+        width: 32px !important;
+        overflow: visible !important;
+        display: block !important;
+    }
+    
+    .static-side-discard.peeking .tile {
+        position: absolute !important;
+        visibility: visible !important;
+        display: block !important;
+    }
+
+
+
+
+
 
     /* Üst Bot (Faruk) Atma Alanları - Simetrik ve Dengeli */
     .bot-rack-container .static-side-discard#discard-bot-2 { 
