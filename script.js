@@ -202,20 +202,27 @@ function dealTiles() {
     const playersIds = gameState.turnOrder; // ['user', 'bot3', 'bot2', 'bot1']
     
     // Dağıtma mantığını startingPlayerIdx'e göre yapıyoruz
+    // 101 KURALI: Başlayan 22, Diğerleri 21
     playersIds.forEach((pId, i) => {
         const count = (i === gameState.startingPlayerIdx) ? 22 : 21;
         gameState.players[pId].hand = gameState.deck.splice(0, count);
+        logDebug(`${gameState.players[pId].name} oyuncusuna ${count} taş dağıtıldı.`);
     });
 
-    // Istakaya diz
+    // Kullanıcı ıstakasını doldur
     gameState.userRackSlots.fill(null);
     gameState.players.user.hand.forEach((tile, i) => {
         if (i < 40) gameState.userRackSlots[i] = tile;
     });
 
+    // Sırayı başlatan kişiye ver
     gameState.currentTurnIndex = gameState.startingPlayerIdx;
-    // KURAL: 22 taşla başlayan kişi çekmeden (zaten 22 var) atarak başlar.
-    gameState.hasDrawn = true; 
+    
+    // KURAL: 22 taşla başlayan kişi çekmeden (zaten 22 var) direkt atarak başlar.
+    // Bu yüzden hasDrawn'ı başlangıçta sadece sıra kendisinde olan VE 22 taşı olan için true yapıyoruz.
+    gameState.hasDrawn = (gameState.players[playersIds[gameState.currentTurnIndex]].hand.length === 22);
+    
+    logDebug(`Oyun başlatıldı. Sıra: ${gameState.players[playersIds[gameState.currentTurnIndex]].name}`);
 }
 
 // --- RENDERING (ARAYÜZ ÇİZİMİ) ---
@@ -1969,6 +1976,8 @@ function findGroups(hand) {
                 const deadCount = Object.values(gameState.discards).flat().filter(d => d.number === missingNum && d.color === clr).length;
                 if (deadCount < 2) {
                     result.potential.push([list[i], list[i+1]]);
+                    removeTileFromList(result.leftovers, list[i]);
+                    removeTileFromList(result.leftovers, list[i+1]);
                 }
             }
         }
@@ -1987,6 +1996,7 @@ function findGroups(hand) {
             });
             if (!allMissingDead) {
                 result.potential.push(list);
+                list.forEach(t => removeTileFromList(result.leftovers, t));
             }
         }
     });
@@ -2153,7 +2163,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Statik Butonlar
-    const btnDraw = document.getElementById('btn-draw-stone');
+    const btnDraw = document.getElementById('btn-draw-deck');
     if (btnDraw) btnDraw.onclick = () => handleDraw(-1);
 
     const btnSortSeries = document.getElementById('btn-sort-series');
@@ -2182,6 +2192,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnProcess = document.getElementById('btn-process');
     if (btnProcess) btnProcess.onclick = autoProcessUserTiles;
+
+    const btnUndo = document.getElementById('btn-undo');
+    if (btnUndo) {
+        btnUndo.onclick = () => {
+             showGameMessage("Bu özellik bir sonraki güncellemede gelecek!");
+        };
+    }
 
     // --- NAV BUTONLARI ---
     const newGameBtn = document.getElementById('new-game-top');

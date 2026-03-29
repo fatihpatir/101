@@ -40,9 +40,10 @@ body {
 }
 
 .logo,
+.icon-only,
 .nav-actions {
     pointer-events: auto;
-    /* Logo ve butonlar tıklanabilir kalsın */
+    /* Logo, Bilgi butonu ve aksiyon butonları tıklanabilir kalsın */
 }
 
 .logo {
@@ -105,6 +106,25 @@ body {
     .top-nav {
         padding: 0 8px;
     }
+}
+
+.icon-only {
+    width: 32px;
+    height: 32px;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: rgba(255, 215, 0, 0.6) !important;
+    border: 1.5px solid rgba(255, 215, 0, 0.3) !important;
+}
+
+.icon-only:hover {
+    background: #ffd700 !important;
+    color: #000 !important;
+    border-color: #ffd700 !important;
 }
 
 #game-container {
@@ -188,9 +208,13 @@ body {
 }
 
 /* Bot Istakalar (Minimalist Sabit Blok Görünümü) */
+/* DOĞAL KOYU AHŞAP DOKUSU */
 .bot-rack {
-    background: linear-gradient(to bottom, #5d4037, #3e2723);
-    border: 2px solid #3e2723;
+    background: #3e2723;
+    background-image: 
+        linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 50%, rgba(0,0,0,0.15) 100%),
+        linear-gradient(180deg, #5d4037 0%, #3e2723 50%, #2b1d16 100%);
+    border: 1px solid #2b1d16;
     border-radius: 4px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
     display: flex;
@@ -203,13 +227,13 @@ body {
 /* Üst Bot - Yatay Istaka (Kalınlaştırılmış) */
 .bot-rack-top {
     width: 250px;
-    height: 32px;
+    height: 34px;
 }
 
 /* Sol ve Sağ Bot - Dikey Istakalar (Kalınlaştırılmış) */
 .bot-rack-left,
 .bot-rack-right {
-    width: 32px;
+    width: 38px; /* Kalınlaştırdık */
     height: 250px;
 }
 
@@ -330,13 +354,13 @@ body {
 
 .table-group {
     display: inline-flex;
-    gap: 1px;
+    gap: 0px; /* Bitişik Nizam */
     background: rgba(255, 255, 255, 0.05);
-    padding: 2px;
-    border-radius: 4px;
-    margin-right: 8px;
+    padding: 1px 2px;
+    border-radius: 2px;
+    margin: 1px;
     border: 1px solid rgba(255, 215, 0, 0.1);
-    height: 30px; /* Boyut düşürüldü */
+    height: 28px; /* Yer tasarrufu için küçültüldü */
     align-items: center;
 }
 
@@ -350,15 +374,15 @@ body {
 
 #series-field .tile,
 #pairs-field .tile {
-    width: 13px !important;
-    height: 20px !important;
-    min-width: 13px;
+    width: 16px !important; /* Maksimum sığdırma için ideal boyut */
+    height: 24px !important;
+    min-width: 16px;
     border-radius: 2px !important;
 }
 #series-field .tile span,
 #pairs-field .tile span {
-    font-size: 0.65rem !important;
-    font-weight: 900;
+    font-size: 0.7rem !important;
+    font-weight: 800;
 }
 
 .table-tile .tile-number {
@@ -376,7 +400,7 @@ body {
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: wrap !important;
-    gap: 2px !important; /* Minimum boşluk */
+    gap: 2px 3px !important; /* Maksimum Sıkıştırma */
     width: 100% !important;
     padding: 2px;
     box-sizing: border-box;
@@ -628,18 +652,18 @@ body {
 
 .center-grid-container {
     position: absolute;
-    top: 36%; /* 38%'den 36%'ya çekildi (Yukarı kaydırıldı) */
+    top: 36%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 96%;
-    height: 55%; /* 60%'dan 55%'e çekildi (Yer açıldı) */
+    width: 98%; /* Bir tık daha genişletildi */
+    height: 62%; /* Daha fazla satır için yükseklik artırıldı */
     z-index: 5;
     display: flex;
-    flex-direction: row; /* Yan yana dizilim */
+    flex-direction: row;
     gap: 0;
     background: rgba(255, 255, 255, 0.03);
-    border: 2px solid rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
     overflow: hidden;
 }
 
@@ -654,29 +678,30 @@ body {
 }
 
 #series-section {
-    flex: 0 0 75%;
-    max-width: 75%;
-    border-right: 2px solid rgba(255, 255, 255, 0.05);
-    overflow: hidden; /* Taşmayı engelle */
+    flex: 0 0 70%;
+    max-width: 70%;
+    border-right: 1.5px solid rgba(255, 215, 0, 0.1);
+    overflow: hidden;
 }
 
 #pairs-section {
-    flex: 0 0 25%;
-    max-width: 25%;
-    background: rgba(0, 0, 0, 0.1);
+    flex: 0 0 30%; /* Çiftler alanı 3-4 yan yana sığması için genişletildi */
+    max-width: 30%;
+    background: rgba(0, 0, 0, 0.15);
     overflow: hidden;
 }
 
 /* Başlık Etiketleri */
 .section-label {
-    font-size: 0.65rem;
-    font-weight: 800;
-    color: rgba(255, 255, 255, 0.3);
-    letter-spacing: 2px;
-    margin-bottom: 8px;
+    font-size: 0.55rem; /* İyice küçültüldü */
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.2);
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+    line-height: 1;
     text-align: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    padding-bottom: 4px;
+    padding: 2px 0;
 }
 
 /* Taşların Dizileceği Gerçek Alanlar */
@@ -1165,30 +1190,38 @@ body.dragging-mode .pair-group::after {
 .rack-wrapper {
     flex-grow: 1;
     width: 100%;
-    max-width: 800px;
+    max-width: 900px;
     margin: 0 10px;
-    /* Açık Masif Ahşap Dokusu */
-    background: linear-gradient(180deg, #d2b48c 0%, #c19a6b 100%);
+    /* DOĞAL ASİMETRİK MASİF CEVİZ */
+    background: #3e2723;
     background-image: 
-        repeating-linear-gradient(90deg, transparent, transparent 120px, rgba(0,0,0,0.02) 121px, transparent 122px),
-        linear-gradient(180deg, #e3cba5 0%, #d2b48c 50%, #c19a6b 100%);
-    padding: 8px;
-    border-radius: 6px 6px 20px 20px; /* Alttan daha kavisli, ıstaka formunda */
+        /* Rastgele damar dalgalanmaları (Asimetrik) */
+        linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(0,0,0,0.08) 15%, 
+            transparent 25%, 
+            rgba(255,255,255,0.02) 45%, 
+            transparent 55%, 
+            rgba(0,0,0,0.1) 85%, 
+            transparent 100%),
+        linear-gradient(180deg, #5d4037 0%, #3e2723 50%, #2b1d16 100%);
+    padding: 10px;
+    border-radius: 8px 8px 25px 25px;
     box-shadow: 
-        0 10px 25px rgba(0, 0, 0, 0.5),
-        inset 0 2px 4px rgba(255, 255, 255, 0.4);
-    border-bottom: 12px solid #a0785a; /* Istaka alt kalınlığı */
+        0 15px 35px rgba(0, 0, 0, 0.7),
+        inset 0 1px 2px rgba(255, 255, 255, 0.05);
+    border-bottom: 15px solid #211510;
     position: relative;
     overflow: hidden;
 }
 
-/* Ahşap Damarı (Micro-detail) */
+/* Ahşap Damarı (Premium Micro-Texture - Minimalist) */
 .rack-wrapper::before {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png');
-    opacity: 0.15;
+    opacity: 0.08; /* Neredeyse görünmez, çok doğal */
     pointer-events: none;
 }
 
@@ -1202,18 +1235,18 @@ body.dragging-mode .pair-group::after {
 
 .rack-row {
     height: auto;
-    min-height: 44px;
-    /* Ahşap İçine Oyulmuş (Carved) Kanal Efekti */
-    background: rgba(0, 0, 0, 0.12);
+    min-height: 48px;
+    /* Ahşap İçine Oyulmuş Derin Kanal Efekti */
+    background: rgba(0, 0, 0, 0.3);
     border-radius: 4px;
     display: grid;
     grid-template-columns: repeat(20, minmax(0, 1fr));
     gap: 4px;
-    padding: 3px 10px;
-    margin-bottom: 8px; /* İki kat arası boşluk */
+    padding: 4px 10px;
+    margin-bottom: 10px;
     box-shadow: 
-        inset 0 4px 6px rgba(0, 0, 0, 0.4), 
-        inset 0 -1px 1px rgba(255, 255, 255, 0.1);
+        inset 0 6px 10px rgba(0, 0, 0, 0.6), 
+        inset 0 -1px 2px rgba(255, 255, 255, 0.05);
     width: 100%;
     position: relative;
 }
@@ -1288,7 +1321,6 @@ body.dragging-mode .pair-group::after {
 @media (hover: none) and (pointer: coarse) {
     .tile, #deck-pile {
         -webkit-user-drag: none !important;
-        user-drag: none !important;
     }
 }
 
