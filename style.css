@@ -1402,14 +1402,15 @@ body.dragging-mode .pair-group::after {
     .logo { font-size: 0.8rem; }
     .nav-btn { padding: 3px 8px; font-size: 0.55rem; }
 
-    /* Alanları Rahatlatma (Ortayı Daralt Ki Yanlara Çarpmasın, Ama Deniz'e Doğru Yükselsin) */
+    /* Alanları Rahatlatma (Gridi Genişlet ve Yukarı Çek) */
     .center-grid-container {
-        width: 86%;  
-        height: 60%; 
-        top: 39%;
-        position: relative; /* İçindeki absoluteler için */
+        width: 96% !important;  
+        height: 52% !important; 
+        top: 30% !important;
+        position: relative;
         z-index: 5;
     }
+
 
     /* ISKATA ALANLARI (Istakalara Sabitlenmiş Stabil Düzen) */
 
@@ -1432,9 +1433,13 @@ body.dragging-mode .pair-group::after {
         box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
     }
 
-    /* Üst Istaka Bölgesi (Deniz) */
-    .bot-rack-container .static-side-discard#discard-bot-2 { left: -45px !important; }
+    /* Üst Istaka Bölgesi (Faruk) - Atma Yerini Aşağı Çek (Butonlara Çarpmasın) */
+    .bot-rack-container .static-side-discard#discard-bot-2 { 
+        left: -45px !important; 
+        top: 80px !important; /* Butonların altından kurtar */
+    }
     .bot-rack-container .static-side-discard#discard-bot-3 { right: -45px !important; }
+
 
     /* Alt Istaka Bölgesi (Fatih) */
     .user-rack-container .static-side-discard#discard-bot-1 { left: -45px !important; }
@@ -1486,11 +1491,15 @@ body.dragging-mode .pair-group::after {
     /* İsim Etiketleri Küçült */
     .name-tag { font-size: 0.6rem; padding: 2px 8px; }
 
-    /* Senin Alanın - Fatih (Büyük Parmak Dostu Düzen) */
+    /* Senin Alanın - Fatih (Tam Alta Sıfırla) */
     .user-rack-area {
-        max-width: 580px; /* 520'den 580'e çıkarıldı */
-        position: relative;
+        max-width: 620px;
+        position: absolute !important;
+        bottom: 0px !important; /* Tam alta otur */
+        left: 50% !important;
+        transform: translateX(-50%) !important;
     }
+
 
     .rack-wrapper {
         max-width: 580px;
@@ -1530,19 +1539,21 @@ body.dragging-mode .pair-group::after {
         line-height: 1;
     }
 
-    /* KRİTİK DÜZELTME: Puan ve Çift İstatistikleri (Fatih Yazısının Soluna Alındı) */
+    /* İstatistikler (Mobilde İsmin Sağında Klasik Görünüm) */
     .hand-stats {
         position: absolute;
-        top: -2px;   
+        top: -6px;   
         left: 50%;
-        margin-left: -165px; /* İsim etiketinin soluna taşıyarak çakışmayı önledik */
+        margin-left: 65px; /* İsmin sağına aldık */
         padding: 4px 10px;
-        transform: scale(0.75); 
-        transform-origin: right center; /* Sola doğru yaslansın */
+        transform: scale(0.85); 
         background: rgba(0,0,0,0.85); 
         z-index: 2000;
         pointer-events: none;
+        border-radius: 6px;
+        border: 1px solid rgba(255,215,0,0.2);
     }
+
 
     /* Atılan Taş Formatları (Seri, Çift Ortası) */
     .discard-zone {
@@ -1580,7 +1591,19 @@ body.dragging-mode .pair-group::after {
     }
     
     .deck-count { font-size: 0.75rem; }
+
+    /* ÇİFTLER ALANI SIKIŞTIRMA */
+    #pairs-field {
+        gap: 2px !important;
+        padding: 2px !important;
+    }
+    #pairs-field .table-group {
+        margin: 1px !important;
+        padding: 1px !important;
+        transform: scale(0.9);
+    }
 }
+
 
 
 /* VERY Small Mobile Landscape (Daha dar telefonlar) */
