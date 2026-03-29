@@ -631,18 +631,25 @@ function isValidAddition(tile, group) {
     }
 
     // 2. SERİ KONTROLÜ (Aynı renk, sıralı sayılar)
-    const runPoints = getRunPoints(group);
-    if (runPoints > 0) {
-        const baseColor = group.find(t => !isWildCard(t))?.color;
-        if (tile.color !== baseColor && !isWildCard(tile)) return false;
-        
-        const nums = group.map(t => t.number).sort((a, b) => a - b);
-        const min = nums[0];
-        const max = nums[nums.length - 1];
-        
-        // Klasik Okey'de 13'ten sonra 1 gelmez.
-        if (tile.number === min - 1 || tile.number === max + 1 || isWildCard(tile)) return true;
+    const sorted = [...group, tile].sort((a, b) => a.number - b.number);
+    const nonWilds = sorted.filter(t => !isWildCard(t));
+    if (nonWilds.length === 0) return true; // Hepsi okeyse her şey uyar (nadir)
+
+    const color = nonWilds[0].color;
+    if (tile.color !== color && !isWildCard(tile)) return false;
+
+    // Renkleri kontrol et (seride hepsi aynı renk)
+    if (group.some(t => !isWildCard(t) && t.color !== color)) return false;
+
+    // Ardışıklık kontrolü (Boşluklar Okey ile dolabiliyor mu?)
+    let okeyCount = sorted.filter(t => isWildCard(t)).length;
+    for (let i = 0; i < nonWilds.length - 1; i++) {
+        const gap = nonWilds[i+1].number - nonWilds[i].number - 1;
+        if (gap < 0) return false; // Aynı sayıdan iki tane var (seri olmaz)
+        okeyCount -= gap;
     }
+    return okeyCount >= 0; // Kalan okeylerle başa veya sona eklenebilir
+
 
     return false;
 }
@@ -694,36 +701,44 @@ function getSetPoints(tiles) {
 
 function getRunPoints(tiles) {
     if (!tiles || tiles.length < 3) return 0;
-    const sorted = [...tiles].sort((a, b) => a.number - b.number || a.color.localeCompare(b.color));
-    
-    // OKEY KURALI: Eğer 1 en sonda ise ve başlarda 12-13 varsa özel durum (12-13-1)
-    // Şimdilik standart ardışıklık yapalım.
-    
-    const baseColor = sorted.find(t => !isWildCard(t))?.color;
-    if (!baseColor) return 0;
-
-    // Renk kontrolü ve ardışıklık
-    let firstNonWildIdx = sorted.findIndex(t => !isWildCard(t));
-    let startNum = sorted[firstNonWildIdx].number - firstNonWildIdx;
-
-    let totalPoints = 0;
-    for (let i = 0; i < sorted.length; i++) {
-        const expectedNum = startNum + i;
-        if (expectedNum < 1 || expectedNum > 13) {
-            // Belki 13'ten sonra 1 geliyordur?
-            // "12-13-1" için özel kontrol buraya eklenebilir.
-            return 0; 
-        }
-
-        const t = sorted[i];
-        if (!isWildCard(t)) {
-            if (t.color !== baseColor || t.number !== expectedNum) return 0;
-        }
-        totalPoints += expectedNum;
+    const nonWilds = tiles.filter(t => !isWildCard(t)).sort((a, b) => a.number - b.number);
+    if (nonWilds.length === 0) {
+        // Hepsi okeyse, teorik olarak bir sayı seçelim (okey 101'de okeyin yerini alan sayıya göredir)
+        return (gameState.okeyTile ? gameState.okeyTile.number : 10) * tiles.length;
     }
 
-    return totalPoints;
+    const baseColor = nonWilds[0].color;
+    let okeyCount = tiles.length - nonWilds.length;
+
+    // 1. Renk ve Ardışıklık Kontrolü
+    for (let i = 0; i < nonWilds.length - 1; i++) {
+        if (nonWilds[i].color !== baseColor) return 0;
+        const gap = nonWilds[i+1].number - nonWilds[i].number - 1;
+        if (gap < 0) return 0;
+        okeyCount -= gap;
+    }
+    if (okeyCount < 0) return 0;
+
+    // 2. Puanlama (Hipotetik tam seriyi oluşturup puanla)
+    const fullRangeLen = nonWilds[nonWilds.length-1].number - nonWilds[0].number + 1;
+    const missingCount = fullRangeLen - nonWilds.length;
+    const leftoverOkeys = okeyCount - missingCount;
+
+    let runSum = 0;
+    for(let n = nonWilds[0].number; n <= nonWilds[nonWilds.length-1].number; n++) runSum += n;
+    
+    // Kalan okeyleri stratejik olarak (mümkünse) sona ekleyelim (puan artsın diye)
+    let extra = 0;
+    let top = nonWilds[nonWilds.length-1].number;
+    let bottom = nonWilds[0].number;
+    for(let k=0; k < leftoverOkeys; k++) {
+        if (top < 13) { top++; extra += top; }
+        else if (bottom > 1) { bottom--; extra += bottom; }
+    }
+
+    return runSum + extra;
 }
+
 
 function finishRound(winnerId = null, lastDiscardedTile = null) {
     logDebug("EL BİTTİ. PUANLAR HESAPLANIYOR...");
@@ -1058,6 +1073,9 @@ function processUserDiscard(tileId) {
     renderDiscard('user', tile);
     gameState.selectedTileIds.delete(tileId);
 
+    // ISTAKAYI ANINDA GÜNCELLE (En kritik düzeltme)
+    renderAll(); 
+
     if (gameState.players.user.hand.length === 0) {
         finishRound('user', tile);
         return;
@@ -1065,6 +1083,7 @@ function processUserDiscard(tileId) {
 
     nextTurn();
 }
+
 
 function nextTurn() {
     // Deste bittiyse ve son oyuncu hamlesini yaptıysa oyunu bitir
@@ -1194,19 +1213,29 @@ async function botPlay() {
 
              if (allNonIshlek.length === 0) return null;
 
-             // Bunların içinden "boşta" (leftover) olanları tercih et (per bozmamak için)
-             const { leftovers } = findGroups(bot.hand);
-             const nonIshlekLeftovers = allNonIshlek.filter(t => leftovers.some(l => l.id === t.id));
+             // --- BOT HAFIZASI VE STRATEJİSİ ---
+             // 1. Çıkmış taşları (discards) tara. Eğer bir taşın yancısı/eşi çoktan çıkmışsa potansiyeli düşüktür.
+             const getPotential = (tile) => {
+                 const deadCount = Object.values(gameState.discards).flat().filter(d => 
+                    (d.number === tile.number && d.color === tile.color) || // Eşi çıkmış
+                    (d.color === tile.color && Math.abs(d.number - tile.number) === 1) // Yancısı çıkmış
+                 ).length;
+                 // Puan riskini ve gelme ihtimalini dengele
+                 return (14 - tile.number) - (deadCount * 2); // Küçük sayılar ve ölü taşlar daha az "potansiyel" (yani daha atılabilir)
+             };
 
-             if (nonIshlekLeftovers.length > 0) {
-                 const nonOkey = nonIshlekLeftovers.filter(t => !isWildCard(t));
-                 return nonOkey.length > 0 ? nonOkey.sort((a,b) => b.number - a.number)[0] : nonIshlekLeftovers[0];
+             // Potansiyeli en düşük olanı (en atılabilir olanı) seç
+             const sortedByAtilabilirlik = allNonIshlek.sort((a, b) => getPotential(a) - getPotential(b));
+             
+             // Eğer eli açmaya yetecek puana (101) çok yaklaştıysa puan boşaltmak için en büyüğü atabilir
+             const currentHandPoints = evaluateCluster(bot.hand).points;
+             if (currentHandPoints > 85) {
+                return allNonIshlek.sort((a,b) => b.number - a.number)[0];
              }
-
-             // Mecbursak per bozacağız ama yine de işlek olanı atmayacağız!
-             const nonOkey = allNonIshlek.filter(t => !isWildCard(t));
-             return nonOkey.length > 0 ? nonOkey.sort((a,b) => b.number - a.number)[0] : allNonIshlek[0];
+             
+             return sortedByAtilabilirlik[0];
         };
+
 
         tileToDiscard = findGoodDiscard();
 
@@ -1477,6 +1506,29 @@ function renderDiscardZone(playerId) {
 
             const isBottomPlayer = (playerId === 'user' || playerId === 'bot1');
             const offset = 55; // Kullanıcının beğendiği o net boşluk
+            
+            // Çalınabilir taş: yığının en üstündeki taş, sıra bizde ve henüz çekmedik
+            const isLastInThisZone = index === all.length - 1;
+            const isMostRecentDiscard = gameState.lastDiscard && gameState.lastDiscard.tile.id === tile.id;
+            const isUserTurn = gameState.turnOrder[gameState.currentTurnIndex] === 'user';
+            const previousPlayerId = gameState.turnOrder[(gameState.currentTurnIndex + 3) % 4];
+            const isStealableCandidate = isLastInThisZone && isMostRecentDiscard && (playerId === previousPlayerId) && isUserTurn && !gameState.hasDrawn;
+
+            if (isStealableCandidate) {
+                tileEl.classList.add('stealable-pulse');
+                tileEl.style.cursor = 'pointer';
+                tileEl.onclick = (e) => {
+                    e.stopPropagation();
+                    attemptStealDiscard();
+                };
+            } else {
+                tileEl.onclick = (e) => {
+                    // Peek moduna geçişi ZONE düzeyinde kalsın ama her taşa tıklayınca tetiklensin
+                    // Fakat stealable olmayan taşlara tıkla-al yapılmasın
+                    e.stopPropagation();
+                    zone.click(); 
+                };
+            }
             
             if (isBottomPlayer) {
                 // Senin (Sağ/Sol) taşların kesinlikle YUKARI açılır
@@ -1870,23 +1922,75 @@ function findGroups(hand) {
 
         allCandidates.sort((a, b) => b.val - a.val);
 
+        const getDeadCount = (num, clr) => {
+            return Object.values(gameState.discards).flat().filter(d => d.number === num && d.color === clr).length;
+        };
+
         allCandidates.forEach(cand => {
             if (okeys.length > 0) {
                 const stillActive = cand.tiles.every(t => result.leftovers.find(it => it.id === t.id));
                 if (stillActive) {
-                    let finalGroup = [];
-                    const ok = okeys.pop();
-                    if (cand.type === 'run' && cand.tiles[1].number - cand.tiles[0].number === 2) {
-                        finalGroup = [cand.tiles[0], ok, cand.tiles[1]];
-                    } else {
-                        finalGroup = [...cand.tiles, ok];
+                    // --- İMKANSIZLIK KONTROLÜ ---
+                    // Eğer per okeyle tamamlanmıyorsa, eksik taşın piyasadaki durumuna bak
+                    let isPossible = true;
+                    if (cand.type === 'run') {
+                        let missingNum = (cand.tiles[1].number - cand.tiles[0].number === 2) 
+                            ? cand.tiles[0].number + 1 
+                            : (cand.tiles[1].number < 13 ? cand.tiles[1].number + 1 : cand.tiles[0].number - 1);
+                        if (getDeadCount(missingNum, cand.tiles[0].color) >= 2) isPossible = false;
                     }
-                    result.complete.push(finalGroup);
-                    cand.tiles.forEach(t => removeTileFromList(result.leftovers, t));
+
+                    if (isPossible) {
+                        let finalGroup = [];
+                        const ok = okeys.pop();
+                        if (cand.type === 'run' && cand.tiles[1].number - cand.tiles[0].number === 2) {
+                            finalGroup = [cand.tiles[0], ok, cand.tiles[1]];
+                        } else {
+                            finalGroup = [...cand.tiles, ok];
+                        }
+                        result.complete.push(finalGroup);
+                        cand.tiles.forEach(t => removeTileFromList(result.leftovers, t));
+                    }
                 }
             }
         });
     }
+
+    // 5. Okey Olmadan "Potansiyel" Perleri Belirle (Ama ölü olanları ele)
+    // Runs (Örn: 7-8 bekliyor 9)
+    const runPotentials = groupTilesByColor(result.leftovers);
+    Object.keys(runPotentials).forEach(clr => {
+        let list = runPotentials[clr].sort((a,b) => a.number - b.number);
+        for(let i=0; i < list.length-1; i++) {
+            const diff = list[i+1].number - list[i].number;
+            if (diff === 1 || diff === 2) {
+                // Beklenen taş ölü mü?
+                const missingNum = (diff === 2) ? list[i].number + 1 : (list[i+1].number < 13 ? list[i+1].number + 1 : list[i].number - 1);
+                const deadCount = Object.values(gameState.discards).flat().filter(d => d.number === missingNum && d.color === clr).length;
+                if (deadCount < 2) {
+                    result.potential.push([list[i], list[i+1]]);
+                }
+            }
+        }
+    });
+
+    // Sets (Örn: Mavi 5, Siyah 5 bekliyor 5)
+    const setPotentials = groupTilesByNumber(result.leftovers);
+    Object.keys(setPotentials).forEach(num => {
+        let list = setPotentials[num];
+        if (list.length === 2 && list[0].color !== list[1].color) {
+            // Eksik renklerin hepsi çıkmış mı?
+            const COLORS = ['mavi', 'kirmizi', 'siyah', 'sari'];
+            const missingColors = COLORS.filter(c => c !== list[0].color && c !== list[1].color);
+            const allMissingDead = missingColors.every(c => {
+                return Object.values(gameState.discards).flat().filter(d => d.number === parseInt(num) && d.color === c).length >= 2;
+            });
+            if (!allMissingDead) {
+                result.potential.push(list);
+            }
+        }
+    });
+
 
     // Kalan Okeyleri Başa Al
     okeys.forEach(o => result.leftovers.unshift(o));

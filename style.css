@@ -1167,12 +1167,31 @@ body.dragging-mode .pair-group::after {
     width: 100%;
     max-width: 800px;
     margin: 0 10px;
-    background: #5d4037;
+    /* Açık Masif Ahşap Dokusu */
+    background: linear-gradient(180deg, #d2b48c 0%, #c19a6b 100%);
+    background-image: 
+        repeating-linear-gradient(90deg, transparent, transparent 120px, rgba(0,0,0,0.02) 121px, transparent 122px),
+        linear-gradient(180deg, #e3cba5 0%, #d2b48c 50%, #c19a6b 100%);
     padding: 8px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
-    border-bottom: 8px solid #3e2723;
+    border-radius: 6px 6px 20px 20px; /* Alttan daha kavisli, ıstaka formunda */
+    box-shadow: 
+        0 10px 25px rgba(0, 0, 0, 0.5),
+        inset 0 2px 4px rgba(255, 255, 255, 0.4);
+    border-bottom: 12px solid #a0785a; /* Istaka alt kalınlığı */
+    position: relative;
+    overflow: hidden;
 }
+
+/* Ahşap Damarı (Micro-detail) */
+.rack-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png');
+    opacity: 0.15;
+    pointer-events: none;
+}
+
 
 
 .rack-grid {
@@ -1183,21 +1202,25 @@ body.dragging-mode .pair-group::after {
 
 .rack-row {
     height: auto;
-    min-height: 42px;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.4));
-    border-radius: 6px;
+    min-height: 44px;
+    /* Ahşap İçine Oyulmuş (Carved) Kanal Efekti */
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
     display: grid;
     grid-template-columns: repeat(20, minmax(0, 1fr));
     gap: 4px;
-    padding: 4px 12px;
-    min-width: 0;
-    align-items: center;
-    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.1);
-    margin-bottom: 4px;
+    padding: 3px 10px;
+    margin-bottom: 8px; /* İki kat arası boşluk */
+    box-shadow: 
+        inset 0 4px 6px rgba(0, 0, 0, 0.4), 
+        inset 0 -1px 1px rgba(255, 255, 255, 0.1);
     width: 100%;
+    position: relative;
 }
 
-/* Her Bir Taş Yuvası (Sabit Raf Düzeni) */
+
+
+/* Her Bir Taş Yuvası (Görünmez Yapıldı, Sadece Grid Fizği Kaldı) */
 .tile-slot {
     width: 100%;
     aspect-ratio: 32 / 48;
@@ -1206,15 +1229,16 @@ body.dragging-mode .pair-group::after {
     min-height: 0;
     flex-shrink: 1;
     border-radius: 3px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+    background: transparent; /* Kutu görünümleri temizlendi */
+    border: none;
+    box-shadow: none;
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
     transition: all 0.2s ease;
 }
+
 
 .tile-slot:hover {
     background: rgba(255, 255, 255, 0.08);
@@ -1450,6 +1474,19 @@ body.dragging-mode .pair-group::after {
         visibility: visible !important;
         display: block !important;
     }
+
+    @keyframes stealable-pulse {
+        0% { filter: brightness(1); transform: scale(1.2); }
+        50% { filter: brightness(1.5); transform: scale(1.3); }
+        100% { filter: brightness(1); transform: scale(1.2); }
+    }
+    .stealable-pulse {
+        animation: stealable-pulse 1.5s infinite ease-in-out !important;
+        border: 2px solid #ffd700 !important;
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8) !important;
+        z-index: 100001 !important;
+    }
+
 
 
 
