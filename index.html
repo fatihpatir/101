@@ -218,12 +218,39 @@
     <!-- Bilgi (Info) Modalı -->
     <div id="info-modal" class="modal">
         <div class="modal-content info-content">
-            <h2 class="scoreboard-title">ℹ️ HAKKINDA</h2>
-            <div class="info-body">
-                <div class="dev-name">
-                    <a href="https://fatihpatir.github.io/web" target="_blank" style="color: inherit; text-decoration: none;">Fatih PATIR</a>
+            <h2 class="scoreboard-title">ℹ️ OYUN KURALLARI</h2>
+            <div class="info-body scrollable-info">
+                <div class="rules-section">
+                    <h3>💠 Oynanış & Dağıtım</h3>
+                    <ul>
+                        <li><strong>Dağıtım:</strong> Oyuna başlayan oyuncu 22, diğerleri 21 taş alır.</li>
+                        <li><strong>Taş Çekme:</strong> Sırası gelen desteden veya son atılan taştan (per tamamlıyorsa) taş çekebilir.</li>
+                        <li><strong>İşlek Cezası:</strong> Masadaki perlere uyan (işlek) bir taşı atan oyuncu anında <strong>+101 ceza</strong> alır.</li>
+                    </ul>
+
+                    <h3>💠 El Açma Şartları</h3>
+                    <ul>
+                        <li><strong>Seri Açma:</strong> Elindeki perlerin toplam sayı değeri en az <strong>101 puan</strong> olmalıdır.</li>
+                        <li><strong>Çift Açma:</strong> En az <strong>5 adet çift</strong> (aynı renk ve sayı) taş bulunmalıdır.</li>
+                        <li><strong>Okey Çalma:</strong> Masadaki perlerde duran Okey'in yerine gerçek taşını koyan o Okey'i alabilir.</li>
+                    </ul>
+
+                    <h3>💠 Puanlama & Cezalar</h3>
+                    <ul>
+                        <li><strong>Bitiş:</strong> Elini bitirene <strong>-101</strong>, Okey ile bitene <strong>-202</strong> puan yazılır.</li>
+                        <li><strong>Açmayanlar:</strong> El bitiminde hiç el açmamış olanlara <strong>202 puan</strong> ceza yazılır.</li>
+                        <li><strong>Açanlar:</strong> Kalan taşlarının toplam sayı değeri kadar ceza alırlar.</li>
+                        <li><strong>Çift Cezası:</strong> Çiftten açan bitiremezse, kalan taşları <strong>2 kat</strong> ceza sayılır.</li>
+                        <li><strong>Elden Bitme:</strong> Kimse açmadan birisi biterse, diğer herkese <strong>808 (veya 1600)</strong> puan yazılır!</li>
+                    </ul>
                 </div>
-                <div class="legal-notice">© 2024 Tüm hakları saklıdır.</div>
+
+                <hr class="info-divider">
+
+                <div class="dev-info">
+                    <p>Developer: <strong>Fatih PATIR</strong></p>
+                    <p>© 2024 - Okey 101 Premium v2.0</p>
+                </div>
             </div>
             <button class="modal-btn primary" onclick="document.getElementById('info-modal').style.display='none'">KAPAT</button>
         </div>

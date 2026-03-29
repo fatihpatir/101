@@ -2412,4 +2412,71 @@ body.dragging-mode .discard-zone#discard-user {
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
+}
+
+/* --- INFO MODAL STYLES --- */
+.scrollable-info {
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 15px;
+    margin: 15px 0;
+    scrollbar-width: thin;
+    scrollbar-color: #ffd700 rgba(0,0,0,0.3);
+}
+
+.scrollable-info::-webkit-scrollbar {
+    width: 6px;
+}
+.scrollable-info::-webkit-scrollbar-thumb {
+    background: #ffd700;
+    border-radius: 3px;
+}
+
+.rules-section h3 {
+    color: #ffd700;
+    font-size: 0.9rem;
+    margin: 15px 0 10px 0;
+    border-left: 3px solid #ffd700;
+    padding-left: 8px;
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
+}
+
+.rules-section ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.rules-section li {
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.4;
+    padding-left: 15px;
+    position: relative;
+}
+
+.rules-section li::before {
+    content: "💠";
+    position: absolute;
+    left: 0;
+    font-size: 0.6rem;
+    top: 3px;
+    color: #ffd700;
+}
+
+.info-divider {
+    border: none;
+    border-top: 1px solid rgba(255, 215, 0, 0.1);
+    margin: 15px 0;
+}
+
+.dev-info {
+    text-align: center;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.4);
+    padding-bottom: 10px;
+}
+
+.dev-info strong {
+    color: #ffd700;
 }
