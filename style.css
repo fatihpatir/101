@@ -466,6 +466,14 @@ body {
     transition: all 0.3s ease;
 }
 
+.user-rack-area {
+    position: relative;
+    padding-top: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start !important; /* Dikey olarak en tepede tut (hiza güvencesi) */
+}
+
 /* Yan Slot Özellikleri (Kullanıcı için) */
 .side-slot {
     flex-shrink: 0;
@@ -505,7 +513,7 @@ body {
 .user-rack-container,
 .bot-rack-container {
     display: flex;
-    align-items: center;
+    align-items: flex-start !important; /* Dikey olarak en tepede tut (hiza güvencesi) */
     justify-content: center;
     width: 100%;
     max-width: 95vw;
@@ -1048,90 +1056,27 @@ body.dragging-mode .pair-group::after {
 */
 
 /* User Rack Area & Integrated Actions */
-.user-rack-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex-grow: 1;
-    width: 90%;
-    max-width: 900px;
-    /* 14 taş + manevra alanı için altın oran */
+/* KULLANICI ADI - LÜKS KAZINMIŞ GÜMÜŞ PANEL */
+.user-rack-area .user-name.name-tag,
+#player-user.active-turn .user-name.name-tag {
+    position: absolute !important;
+    top: 10px !important;
+    left: 15px !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    color: #ffffff !important;
+    font-family: 'Permanent Marker', cursive !important;
+    font-size: 1.3rem !important;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    transform: none !important;
+    z-index: 1000 !important;
 }
 
-.rack-actions {
-    display: flex;
-    gap: 4px;
-    margin-bottom: -2px;
-    z-index: 20;
-    align-items: flex-end;
-}
+/* AKSİYON BUTONLARI - AHŞABA OYULMUŞ PANEL */
 
-.action-rect.disabled {
-    opacity: 0.3;
-    pointer-events: none;
-    filter: grayscale(1);
-    cursor: not-allowed;
-}
-
-.action-rect {
-    border: 1px solid rgba(0, 0, 0, 0.3);
-    border-bottom: none;
-    border-radius: 4px 4px 0 0;
-    color: white;
-    padding: 4px 12px;
-    font-size: 0.7rem;
-    font-weight: 800;
-    cursor: pointer;
-    position: relative;
-    bottom: -1px;
-}
-
-.action-rect:hover {
-    filter: brightness(1.1);
-}
-
-
-/* 1. Sıralama Butonları (Mavi) */
-.btn-sort {
-    background: linear-gradient(180deg, #29b6f6 0%, #0288d1 100%);
-    border: 2px solid #01579b;
-    padding: 6px 18px;
-}
-
-/* 2. El Açma Butonları (Altın/Turuncu) */
-.btn-open {
-    background: linear-gradient(180deg, #ffb74d 0%, #f57c00 100%);
-    border: 2px solid #e65100;
-}
-
-/* 3. İşlem/Geri Al Butonları (Mor/Violet) */
-.btn-util {
-    background: linear-gradient(180deg, #ba68c8 0%, #8e24aa 100%);
-    border: 2px solid #4a148c;
-}
-
-
-
-.action-divider {
-    width: 2px;
-    height: 20px;
-    background: rgba(255, 255, 255, 0.2);
-    margin: 0 10px 5px 10px;
-}
-
-/* El İatistikleri (Puan ve Çift Sayacı) */
-.hand-stats {
-    display: flex;
-    gap: 12px;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 6px 15px;
-    border-radius: 20px;
-    border: 1px solid rgba(255, 215, 0, 0.3);
-    margin-left: auto;
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
-    align-self: flex-end;
-    margin-bottom: 2px;
-}
 
 .stat-item {
     display: flex;
@@ -1192,10 +1137,9 @@ body.dragging-mode .pair-group::after {
     width: 100%;
     max-width: 900px;
     margin: 0 10px;
-    /* DOĞAL ASİMETRİK MASİF CEVİZ */
+    padding: 75px 10px 10px 10px; /* Üst ahşap şerit devasa yapıldı */
     background: #3e2723;
     background-image: 
-        /* Rastgele damar dalgalanmaları (Asimetrik) */
         linear-gradient(90deg, 
             transparent 0%, 
             rgba(0,0,0,0.08) 15%, 
@@ -1205,14 +1149,13 @@ body.dragging-mode .pair-group::after {
             rgba(0,0,0,0.1) 85%, 
             transparent 100%),
         linear-gradient(180deg, #5d4037 0%, #3e2723 50%, #2b1d16 100%);
-    padding: 10px;
-    border-radius: 8px 8px 25px 25px;
+    border-radius: 12px 12px 25px 25px;
     box-shadow: 
-        0 15px 35px rgba(0, 0, 0, 0.7),
-        inset 0 1px 2px rgba(255, 255, 255, 0.05);
-    border-bottom: 15px solid #211510;
+        0 20px 50px rgba(0, 0, 0, 0.9),
+        inset 0 1px 4px rgba(255, 255, 255, 0.1);
+    border-bottom: 22px solid #211510;
     position: relative;
-    overflow: hidden;
+    overflow: visible !important;
 }
 
 /* Ahşap Damarı (Premium Micro-Texture - Minimalist) */
@@ -1448,12 +1391,17 @@ body.dragging-mode .pair-group::after {
 
     /* Logo ve Üst Navbar Kompaktlaştırma */
     .top-nav {
-        height: 25px;
-        padding: 0 4px;
+        height: 32px !important; /* Bir tık büyüttük ki butonlar ferahlasın */
+        padding: 0 6px;
         top: max(2px, env(safe-area-inset-top, 2px));
     }
-    .logo { font-size: 0.7rem; flex-grow: 1; text-align: left; margin-left: 10px; }
-    .nav-btn { padding: 3px 5px; font-size: 0.45rem; transform: scale(0.85); transform-origin: right top; }
+    .logo { font-size: 0.75rem; flex-grow: 1; text-align: left; margin-left: 10px; }
+    .nav-btn { 
+        padding: 4px 10px !important; /* Daha kolay dokunma alanı */
+        font-size: 0.65rem !important; /* Daha okunabilir font */
+        transform: scale(1) !important; /* Küçültmeyi kaldırdık */
+        transform-origin: right top; 
+    }
     #info-btn { transform: scale(1.1); margin-left: 5px; } 
 
 
@@ -1483,8 +1431,8 @@ body.dragging-mode .pair-group::after {
         justify-content: center;
         transform: scale(0.85);
         pointer-events: auto !important;
-        top: 50%;
-        margin-top: -24px;
+        top: 0 !important;
+        margin-top: 0 !important;
         overflow: visible !important; /* Taşlar dışarı taşabilmeli */
         box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
         transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -1542,16 +1490,30 @@ body.dragging-mode .pair-group::after {
 
 
 
-    /* Alt Istaka Bölgesi (Fatih) */
-    .user-rack-container .static-side-discard#discard-bot-1 { left: -45px !important; }
-    .user-rack-container .static-side-discard#discard-user { right: -45px !important; }
+    /* Alt Istaka Bölgesi (Fatih) - KULLANICI İSTEĞİ: NORMAL TAŞ BOYUTU */
+    .user-rack-container .static-side-discard#discard-bot-1,
+    .user-rack-container .static-side-discard#discard-user {
+        width: 36px !important;
+        height: 52px !important;
+        transform: scale(1) !important; /* Küçültmeyi kaldır */
+        border: 1.5px solid rgba(255, 215, 0, 0.4);
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    /* Bu alanlardaki taşların da ölçeğini %100 yap */
+    .user-rack-container .static-side-discard .tile {
+        transform: scale(1) !important;
+    }
+
+    .user-rack-container .static-side-discard#discard-bot-1 { left: -50px !important; }
+    .user-rack-container .static-side-discard#discard-user { right: -50px !important; }
 
     /* Pozisyon ve Boyut Güvencesi (Ahşap Kutuları Bozmadan) */
     .bot-rack-container, .user-rack-container { 
         position: relative !important; 
         display: flex !important;
         justify-content: center;
-        align-items: center;
+        align-items: flex-start !important; /* Dikey kaymaları engellemek için yukarı kilitledik */
         width: 100% !important;
         margin: 0 auto !important;
     }
@@ -1566,57 +1528,39 @@ body.dragging-mode .pair-group::after {
     .bot-rack-top { width: 140px; height: 26px; }
     .bot-rack-left, .bot-rack-right { width: 26px; height: 140px; }
 
-    /* El İstatistikleri (Eski Yer) */
-    .hand-stats {
-        display: flex;
-        gap: 12px;
-        margin-left: 15px;
-        background: rgba(0,0,0,0.4);
-        padding: 4px 10px;
-        border-radius: 4px;
-        border: 1px solid rgba(255,215,0,0.1);
-    }
-    .stat-item {
-        color: #ffd700;
-        font-size: 0.65rem;
-        font-weight: 800;
-        font-family: 'Outfit', sans-serif;
-    }
-    .stat-label { opacity: 0.6; margin-right: 3px; }
-
     /* Botları Kaydırma (Adaları Tamamen Yoksay) */
     .player-slot.top { top: 2px !important; } /* Deniz'i en tavana yasla */
     .player-slot.left { left: -14px !important; } /* Samet'i sola tamamen it (ekran çentiğine rağmen) */
-    .player-slot.right { right: -14px !important; } /* Sinem'i sağa tamamen it */
-
-    /* İsim Etiketleri Küçült */
-    .name-tag { font-size: 0.6rem; padding: 2px 8px; }
-
-    /* Senin Alanın - Fatih (Tam Alta Sıfırla) */
-    .user-rack-area {
-        max-width: 620px;
-        position: absolute !important;
-        bottom: 0px !important; /* Tam alta otur */
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-    }
-
+    .player-slot.right { right: -14px !important; }
 
     .rack-wrapper {
         max-width: 580px;
-        padding: 6px;
+        padding: 50px 6px 6px 6px; /* Mobilde taşlara binmemesi için genişletildi */
         margin: 0;
+        overflow: visible !important;
+        border-bottom: 10px solid #211510;
+        border-radius: 10px 10px 20px 20px;
     }
+
+    .user-name {
+        position: absolute !important;
+        top: 6px !important;
+        left: 10px !important;
+        font-size: 0.75rem !important;
+        z-index: 200 !important;
+    }
+
+
 
     .rack-row {
         height: auto;
         padding: 4px 8px;
         gap: 3px;
-        min-height: 44px; /* 38'den 44'e (Daha geniş tık alanı) */
+        min-height: 44px;
     }
 
     .tile-slot {
-        max-width: 28px; /* 25'den 28'e */
+        max-width: 28px;
         height: auto;
     }
 
@@ -1625,39 +1569,17 @@ body.dragging-mode .pair-group::after {
         height: 44px;
     }
 
-    .tile span { font-size: 1rem; } /* Taş sayıları daha okunaklı */
-    
-    /* Aksiyon Butonları (Seri, Çift, vb) */
-    .rack-actions {
-        gap: 4px;
-        margin-bottom: 2px;
-    }
+    .tile span { font-size: 1rem; }
 
     .action-rect {
-        font-size: 0.65rem; /* Buton yazıları büyütüldü */
         padding: 4px 10px;
-        height: 26px; /* Butonlar daha kolay basılabilir */
-        line-height: 1;
+        font-size: 0.6rem;
+        background: rgba(0,0,0,0.6);
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        border-radius: 4px;
+        color: #ffd700;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
     }
-
-    /* İstatistikler (Fatih İsminin Yanında Milimetrik Hizalamalı) */
-    .hand-stats {
-        position: absolute;
-        top: 0px !important; /* İsim etiketiyle aynı hizaya çekildi */
-        left: 50%;
-        margin-left: 62px; /* İsme yaklaştırıldı */
-        padding: 4px 12px;
-        transform: scale(0.8); 
-        background: rgba(0,0,0,0.9); 
-        z-index: 2000;
-        pointer-events: none;
-        border-radius: 6px;
-        border: 1px solid rgba(255,215,0,0.3);
-        display: flex;
-        gap: 8px;
-    }
-
-
 
     /* Atılan Taş Formatları (Seri, Çift Ortası) */
     .discard-zone {

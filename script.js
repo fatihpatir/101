@@ -519,65 +519,6 @@ function openPairs() {
     showGameMessage(isFirstTime ? "Tebrikler, masaya 5 çift açıldı!" : "Çiftler masaya indi.");
 }
 
-function handleProcessTile(tileId, groupIdx, owner) {
-    const rackIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
-    if (rackIdx === -1) return;
-
-    const tile = gameState.userRackSlots[rackIdx];
-    const group = gameState.table[owner][groupIdx];
-
-    // --- OKEY ÇALMA KONTROLÜ ---
-    const okeyInGroupIdx = group.findIndex(t => isWildCard(t));
-    if (okeyInGroupIdx !== -1) {
-        // Bu grupta bir okey var. Çalınabilir mi?
-        const subs = getOkeySubstitutes(group);
-        const targetOkey = group[okeyInGroupIdx];
-        const requiredTile = subs[targetOkey.id];
-
-        if (requiredTile) {
-            const matchesNumber = tile.number === requiredTile.number;
-            const matchesColor = requiredTile.multipleColors 
-                ? !group.some(t => t.color === tile.color && !isWildCard(t)) // Set için renk kontrolü
-                : tile.color === requiredTile.color; // Seri için renk kontrolü
-
-            if (matchesNumber && matchesColor) {
-                // OKEY ÇALINDI!
-                group[okeyInGroupIdx] = tile; // Gerçek taşı koy
-                gameState.userRackSlots[rackIdx] = targetOkey; // Okeyi ıstakaya ver
-                targetOkey.isFlipped = false; // Okey ıstakada açık dursun
-                
-                // CEZA: Sadece BAŞKASINDAN çalınca ceza ver
-                if (owner !== 'user') {
-                    gameState.players[owner].score += 101;
-                    gameState.roundScores[owner][gameState.roundScores[owner].length - 1] += 101;
-                    showGameMessage(`OKEY ÇALINDI! ${gameState.players[owner].name}'e +101 Ceza! 🔥`);
-                } else {
-                    showGameMessage("Kendi okeyinizi geri aldınız! 🔥");
-                }
-                
-                renderAll();
-                return;
-            }
-        }
-    }
-
-        // --- NORMAL İŞLEME KONTROLÜ ---
-    const hypotheticalGroup = [...group, tile];
-    const isNowRun = getRunPoints(hypotheticalGroup) > 0;
-    const isNowSet = getSetPoints(hypotheticalGroup) > 0;
-
-    if (isNowRun || isNowSet) {
-        group.push(tile);
-        if (isNowRun) group.sort((a, b) => a.number - b.number);
-        
-        gameState.userRackSlots[rackIdx] = null;
-        renderAll();
-        showGameMessage("Taş başarıyla işlendi! 🔥");
-    } else {
-        showGameMessage("Bu taş bu perle uyumlu değil.");
-    }
-}
-
 function getOkeySubstitutes(group) {
     const subs = {};
     if (!group || group.length < 3) return subs;
@@ -1029,7 +970,11 @@ function handleDraw(targetIdx = -1) {
         return;
     }
     if (gameState.hasDrawn) {
-        showGameMessage("Zaten taş çektiniz!");
+        if (gameState.players.user.hand.length === 22) {
+            showGameMessage("Bağlangıç fazlası (22 taş) sizde! Oyuna taş atarak başlamalısınız. 🎲");
+        } else {
+            showGameMessage("Zaten taş çektiniz!");
+        }
         return;
     }
     if (gameState.deck.length === 0) return;
@@ -1392,17 +1337,58 @@ function autoProcessUserTiles() {
         changed = false;
         const owners = ['user', 'bot1', 'bot2', 'bot3'];
 
-        owners.forEach(owner => {
+        for (const owner of owners) {
             const tableGroups = gameState.table[owner] || [];
-            tableGroups.forEach((group) => {
-                // Elimizdeki taşları (istakadaki slotları) tara
+            for (let gIdx = 0; gIdx < tableGroups.length; gIdx++) {
+                const group = tableGroups[gIdx];
+
+                // 1. OKEY ÇALMA KONTROLÜ (OTOMATİK TAKAS)
+                const okeyInGroupIdx = group.findIndex(t => isWildCard(t));
+                if (okeyInGroupIdx !== -1) {
+                    const subs = getOkeySubstitutes(group);
+                    const targetOkey = group[okeyInGroupIdx];
+                    const requiredTile = subs[targetOkey.id];
+
+                    if (requiredTile) {
+                        for (let i = 0; i < gameState.userRackSlots.length; i++) {
+                            const tile = gameState.userRackSlots[i];
+                            if (!tile) continue;
+
+                            const matchesNumber = tile.number === requiredTile.number;
+                            const matchesColor = requiredTile.multipleColors 
+                                ? !group.some(t => t.color === tile.color && !isWildCard(t))
+                                : tile.color === requiredTile.color;
+
+                            if (matchesNumber && matchesColor) {
+                                // OKEY ÇALINIP ISTAKAYA DÖNER
+                                group[okeyInGroupIdx] = tile;
+                                gameState.userRackSlots[i] = targetOkey;
+                                targetOkey.isFlipped = false;
+                                player.hand = player.hand.filter(t => t.id !== tile.id);
+                                player.hand.push(targetOkey);
+
+                                if (owner !== 'user') {
+                                    gameState.players[owner].score += 101;
+                                    showGameMessage(`OKEY ÇALDIN! ${gameState.players[owner].name}'e +101 Ceza! 🔥`);
+                                } else {
+                                    showGameMessage("Kendi Okey'ini geri aldın! 🔥");
+                                }
+                                changed = true;
+                                totalProcessed++;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (changed) break; 
+
+                // 2. NORMAL İŞLEME KONTROLÜ
                 for (let i = 0; i < gameState.userRackSlots.length; i++) {
                     const tile = gameState.userRackSlots[i];
                     if (!tile) continue;
 
-                    // Bu taş bu gruba eklebilir mi?
                     if (isValidAddition(tile, group)) {
-                        // Seri ise konumunu bul ve ekle
                         if (getRunPoints(group) > 0) {
                             const nums = group.filter(t => !isWildCard(t)).map(t => t.number);
                             const min = Math.min(...nums);
@@ -1412,7 +1398,6 @@ function autoProcessUserTiles() {
                             group.push(tile);
                         }
 
-                        // Istakadan ve elden sil
                         gameState.userRackSlots[i] = null;
                         player.hand = player.hand.filter(t => t.id !== tile.id);
                         
@@ -1420,45 +1405,74 @@ function autoProcessUserTiles() {
                         totalProcessed++;
                     }
                 }
-            });
-        });
+                if (changed) break;
+            }
+            if (changed) break;
+        }
     }
 
     if (totalProcessed > 0) {
         renderAll();
-        showGameMessage(`${totalProcessed} taş masaya otomatik işlendi! 🔥`);
+        showGameMessage(`${totalProcessed} taş masaya işlendi! 🔥`);
     } else {
         showGameMessage("Elinizde işlenecek taş bulunamadı.");
     }
 }
 
 function handleProcessTile(tileId, groupIdx, owner) {
-    // Manuel işleme (Sürükle-Bırak veya Tıkla-İşle için)
-    const player = gameState.players.user;
-    if (!player.hasOpened) {
-        showGameMessage("Önce elinizi açmalısınız!");
-        return;
-    }
-
     const rackIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
     if (rackIdx === -1) return;
-    
+
     const tile = gameState.userRackSlots[rackIdx];
     const group = gameState.table[owner][groupIdx];
 
-    if (isValidAddition(tile, group)) {
-        if (getRunPoints(group) > 0) {
-            const nums = group.filter(t => !isWildCard(t)).map(t => t.number);
-            const min = Math.min(...nums);
-            if (!isWildCard(tile) && tile.number < min) group.unshift(tile);
-            else group.push(tile);
-        } else {
-            group.push(tile);
+    // --- OKEY ÇALMA KONTROLÜ ---
+    const okeyInGroupIdx = group.findIndex(t => isWildCard(t));
+    if (okeyInGroupIdx !== -1) {
+        // Bu grupta bir okey var. Çalınabilir mi?
+        const subs = getOkeySubstitutes(group);
+        const targetOkey = group[okeyInGroupIdx];
+        const requiredTile = subs[targetOkey.id];
+
+        if (requiredTile) {
+            const matchesNumber = tile.number === requiredTile.number;
+            const matchesColor = requiredTile.multipleColors 
+                ? !group.some(t => t.color === tile.color && !isWildCard(t)) // Set için renk kontrolü
+                : tile.color === requiredTile.color; // Seri için renk kontrolü
+
+            if (matchesNumber && matchesColor) {
+                // OKEY ÇALINDI!
+                group[okeyInGroupIdx] = tile; // Gerçek taşı koy
+                gameState.userRackSlots[rackIdx] = targetOkey; // Okeyi ıstakaya ver
+                targetOkey.isFlipped = false; // Okey ıstakada açık dursun
+                
+                // CEZA: Sadece BAŞKASINDAN çalınca ceza ver
+                if (owner !== 'user') {
+                    gameState.players[owner].score += 101;
+                    gameState.roundScores[owner][gameState.roundScores[owner].length - 1] += 101;
+                    showGameMessage(`OKEY ÇALINDI! ${gameState.players[owner].name}'e +101 Ceza! 🔥`);
+                } else {
+                    showGameMessage("Kendi okeyinizi geri aldınız! 🔥");
+                }
+                
+                renderAll();
+                return;
+            }
         }
+    }
+
+    // --- NORMAL İŞLEME KONTROLÜ ---
+    const hypotheticalGroup = [...group, tile];
+    const isNowRun = getRunPoints(hypotheticalGroup) > 0;
+    const isNowSet = getSetPoints(hypotheticalGroup) > 0;
+
+    if (isNowRun || isNowSet) {
+        group.push(tile);
+        if (isNowRun) group.sort((a, b) => a.number - b.number);
+        
         gameState.userRackSlots[rackIdx] = null;
-        player.hand = player.hand.filter(t => t.id !== tileId);
         renderAll();
-        showGameMessage("Taş işlendi! 🔥");
+        showGameMessage("Taş başarıyla işlendi! 🔥");
     } else {
         showGameMessage("Bu taş bu perle uyumlu değil.");
     }
@@ -1560,19 +1574,34 @@ function renderDiscardZone(playerId) {
 
         if (isLastInThisZone && isMostRecentDiscard && isCurrentPlayerUser && !gameState.hasDrawn) {
             tileEl.classList.add('stealable-tile');
-            tileEl.title = 'Taşı çalmak için dokun!';
+            tileEl.title = 'Taşı çalmak için sürükle veya dokun!';
             tileEl.style.cursor = 'grab';
             
+            // --- SÜRÜKLE BIRAK (PC) ---
+            tileEl.setAttribute('draggable', 'true');
+            tileEl.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('tileId', tile.id);
+                e.dataTransfer.setData('source', 'discard');
+                tileEl.classList.add('dragging');
+            });
+
+            // --- SÜRÜKLE BIRAK (MOBİL / PHANTOM) ---
+            tileEl.addEventListener('touchstart', (e) => {
+                // Eğer peeking (basılı tutma) timer'ı varsa iptal et ki sürükleme başlasın
+                clearTimeout(peekTimer);
+                gameState.touch.draggedTileId = tile.id;
+                gameState.touch.sourceType = 'steal';
+                createPhantom(tileEl);
+                document.body.classList.add('dragging-mode');
+            }, { passive: true });
+
             const handleSteal = (e) => {
-                // Eğer peeking aktifse (uzun basılı tutulmuşsa) çalma, pas geç
                 if (zone.classList.contains('peeking')) return;
-                
                 e.preventDefault();
                 e.stopPropagation();
                 attemptStealDiscard();
             };
             tileEl.onclick = handleSteal;
-            tileEl.addEventListener('touchend', handleSteal, { passive: false });
         }
 
         zone.appendChild(tileEl);
@@ -1710,9 +1739,11 @@ function handleDropOnSlot(e) {
     this.classList.remove('drag-hover');
     const targetIdx = parseInt(this.dataset.index);
 
-    const isFromDeck = e.dataTransfer.getData('source') === 'deck';
-    if (isFromDeck) {
+    const source = e.dataTransfer.getData('source');
+    if (source === 'deck') {
         handleDraw(targetIdx);
+    } else if (source === 'discard') {
+        attemptStealDiscard();
     } else {
         const tileId = e.dataTransfer.getData('tileId');
         if (tileId) moveTileToSlot(tileId, targetIdx);
@@ -2123,22 +2154,77 @@ function autoSortSeries() {
 function autoSortPairs() {
     let hand = [...gameState.players.user.hand.filter(t => t)];
     let pairs = [];
-    hand.sort((a, b) => a.number - b.number || a.color.localeCompare(b.color));
-    for (let i = 0; i < hand.length - 1; i++) {
-        if (!hand[i].isJoker && hand[i].number === hand[i + 1].number && hand[i].color === hand[i + 1].color) {
-            pairs.push([hand[i], hand[i + 1]]);
-            hand.splice(i, 2); i--;
+    let okeys = [];
+
+    // 1. Okeyleri (Gerçek ve Sahte) ayır
+    for (let i = 0; i < hand.length; i++) {
+        if (isWildCard(hand[i])) {
+            okeys.push(hand.splice(i, 1)[0]);
+            i--;
         }
     }
-    let { complete, potential, leftovers } = findGroups(hand);
+
+    // 2. Doğal Çiftleri Bul (Aynı renk ve sayı)
+    hand.sort((a,b) => a.number - b.number || a.color.localeCompare(b.color));
+    for (let i = 0; i < hand.length - 1; i++) {
+        if (hand[i].number === hand[i + 1].number && hand[i].color === hand[i + 1].color) {
+            pairs.push([hand[i], hand[i + 1]]);
+            hand.splice(i, 2);
+            i--;
+        }
+    }
+
+    // 3. Kalan okeyleri (Varsa) hem kendi aralarında hem de kalan tektaşlarla çiftle
+    while (okeys.length > 0) {
+        if (okeys.length >= 2) {
+            // İki okeyi (Örn: 2 Sahte veya 1 Gerçek 1 Sahte) bir çift yap
+            pairs.push([okeys.pop(), okeys.pop()]);
+        } else if (hand.length > 0) {
+            // Tek kalan okeyi, eldeki en büyük tektaşla çift yap (genelde puan için mantıklı)
+            hand.sort((a, b) => b.number - a.number);
+            pairs.push([okeys.pop(), hand.shift()]);
+        } else {
+            // Sadece tek okey kaldıysa okeylere geri at (leftover gibi)
+            break;
+        }
+    }
+
+    // 4. Perleri de dizmek için findGroups kullan (Eğer çiftlerden kalanlarla seri oluyorsa)
+    let { complete, potential, leftovers: finalLeftovers } = findGroups(hand);
+    
     gameState.userRackSlots.fill(null);
     let currentIdx = 0;
-    pairs.forEach(p => { if (currentIdx < 39) { gameState.userRackSlots[currentIdx++] = p[0]; gameState.userRackSlots[currentIdx++] = p[1]; currentIdx++; } });
-    complete.forEach(g => { g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
-    potential.forEach(g => { g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
-    leftovers.sort((a, b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || a.number - b.number).forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; });
+
+    // Önce çiftleri diz (Başa)
+    pairs.forEach(p => { 
+        if (currentIdx < 39) { 
+            gameState.userRackSlots[currentIdx++] = p[0]; 
+            gameState.userRackSlots[currentIdx++] = p[1]; 
+            currentIdx++; 
+        } 
+    });
+
+    // Varsa tam perleri diz (Orta)
+    complete.forEach(g => { 
+        g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); 
+        currentIdx++; 
+    });
+
+    // Varsa potansiyelleri diz
+    potential.forEach(g => { 
+        g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); 
+        currentIdx++; 
+    });
+
+    // Kalan tektaşları ve tek kalan okeyleri diz
+    let totalLeftovers = [...finalLeftovers, ...okeys];
+    totalLeftovers.sort((a, b) => (COLORS.indexOf(a.color) - COLORS.indexOf(b.color)) || (a.number - b.number))
+        .forEach(t => { 
+            if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; 
+        });
+
     renderUserRack();
-    showGameMessage("Hibrit dizilim tamamlandı.");
+    showGameMessage("Çift öncelikli dizilim tamamlandı! ⚡");
 }
 
 // --- DOM LİSTENERS ---
@@ -2163,9 +2249,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Statik Butonlar
-    const btnDraw = document.getElementById('btn-draw-deck');
-    if (btnDraw) btnDraw.onclick = () => handleDraw(-1);
-
     const btnSortSeries = document.getElementById('btn-sort-series');
     if (btnSortSeries) btnSortSeries.onclick = autoSortSeries;
 
@@ -2192,13 +2275,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnProcess = document.getElementById('btn-process');
     if (btnProcess) btnProcess.onclick = autoProcessUserTiles;
-
-    const btnUndo = document.getElementById('btn-undo');
-    if (btnUndo) {
-        btnUndo.onclick = () => {
-             showGameMessage("Bu özellik bir sonraki güncellemede gelecek!");
-        };
-    }
 
     // --- NAV BUTONLARI ---
     const newGameBtn = document.getElementById('new-game-top');

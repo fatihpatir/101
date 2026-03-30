@@ -16,6 +16,239 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Permanent+Marker&display=swap"
         rel="stylesheet">
+    <style>
+        /* HAVADA YÜZEN KONTROLLER - YEŞİL MASADAKİ FERAH PANEL */
+        .user-rack-area {
+            position: relative !important;
+            padding-top: 40px !important; 
+            display: flex !important;
+            justify-content: center !important;
+            align-items: flex-start !important; /* Dikey kaymaları engellemek için yukarı çapa attık */
+        }
+        
+        /* KULLANICI ADI - LÜKS MARKA OYMA (OUTFIT PRESTİJ STİLİ) */
+        .user-rack-area .user-name.name-tag, 
+        #player-user.active-turn .user-name.name-tag {
+            position: absolute !important;
+            left: 50% !important; 
+            top: 108px !important; /* İki sıra taşın arasındaki o nizamî boşluk */
+            transform: translate(-50%, -50%) !important;
+            color: rgba(255, 255, 255, 0.45) !important; /* Asil, yarı saydam beyaz filigran */
+            background: none !important;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            font-family: 'Outfit', sans-serif !important; /* Daha prestijli ve modern font */
+            font-size: 0.85rem !important; /* Küçük ve elit punto */
+            font-weight: 800 !important;
+            letter-spacing: 3px !important; /* Harfler arası asil boşluk (Luxury Marka Etkisi) */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
+            opacity: 1 !important;
+            z-index: 5000 !important; /* Her şeyin üstünde */
+            display: block !important;
+            visibility: visible !important;
+            text-transform: uppercase;
+            width: auto !important;
+            height: auto !important;
+            text-align: center !important;
+            pointer-events: none !important;
+        }
+
+        .rack-actions {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            transform: translateY(-100%) !important;
+            display: flex !important;
+            gap: 6px !important;
+            padding: 4px 6px !important;
+            background: transparent !important;
+            border: none !important;
+            z-index: 500 !important;
+        }
+
+        .action-label, .action-btn, .action-rect, .stat-item {
+            background: linear-gradient(to bottom, #5d4037, #3e2723) !important;
+            border: 1px solid rgba(251, 192, 45, 0.7) !important;
+            color: white !important;
+            font-size: 0.71rem !important;
+            font-weight: 800 !important;
+            padding: 4px 10px !important;
+            border-radius: 4px !important;
+            text-transform: uppercase !important;
+            display: flex !important;
+            align-items: center !important;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4) !important;
+            white-space: nowrap !important;
+            height: auto !important; /* Eski sabit yükseklikleri ez */
+            line-height: normal !important;
+        }
+
+        .action-rect {
+            cursor: pointer !important;
+            transition: all 0.2s !important;
+        }
+
+        .action-rect:hover {
+            filter: brightness(1.25) !important;
+            border-color: #fbc02d !important;
+            transform: translateY(-2px) !important;
+        }
+
+        /* Seri ve Çift butonlarının metin rengi (Sarı) */
+        .btn-sort {
+            color: #fbc02d !important;
+            font-weight: 900 !important;
+        }
+
+        .stat-item span {
+            color: #fbc02d !important;
+            font-weight: 950 !important;
+            margin-left: 8px !important;
+        }
+
+        .hand-stats {
+            position: absolute !important;
+            top: 0 !important;
+            right: 0 !important;
+            transform: translateY(-100%) !important;
+            display: flex !important;
+            gap: 12px !important;
+            padding: 5px 0 !important;
+            background: transparent !important;
+            border: none !important;
+            z-index: 500 !important;
+            pointer-events: none !important;
+        }
+
+        .stat-item {
+            background: linear-gradient(to bottom, #5d4037, #3e2723) !important;
+            border: 1px solid rgba(251, 192, 45, 0.7) !important;
+            padding: 5px 14px !important;
+            border-radius: 4px !important;
+            color: white !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 0.75rem !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4) !important;
+            white-space: nowrap !important;
+            display: flex !important;
+            align-items: center !important;
+            pointer-events: auto !important;
+        }
+
+        .stat-item span {
+            color: #fbc02d !important;
+            font-weight: 950 !important;
+            margin-left: 8px !important;
+        }
+
+        /* --- ISTAKA TEMEL YAPISI --- */
+        .rack-wrapper {
+            padding-top: 14px !important;
+            background: linear-gradient(to bottom, #5d4037, #3e2723) !important;
+            border-bottom: 8px solid #211510 !important;
+            border-radius: 8px 8px 15px 15px !important;
+            box-shadow: 0 0 0 2px #fbc02d, 0 20px 40px rgba(0,0,0,0.7) !important;
+            position: relative !important;
+            width: fit-content !important;
+            margin: 0 auto !important;
+        }
+
+        /* MASAÜSTÜ HAYALET MÜHÜR (CENTER WATERMARK) */
+        .table-watermark {
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) rotate(-25deg) !important;
+            font-size: 1.5rem !important; /* Mikro ve ultra-minimal mühür boyutu */
+            font-weight: 900 !important;
+            color: rgba(255, 255, 255, 0.08) !important;
+            pointer-events: none !important;
+            z-index: 1000 !important;
+            white-space: nowrap !important;
+            text-transform: uppercase !important;
+            font-family: 'Outfit', sans-serif !important;
+            letter-spacing: 6px !important;
+            user-select: none !important;
+            text-shadow: none !important;
+        }
+
+        /* BOT İSİMLERİ - DİKEY VE SABİT NİZAM (KIPIRDAMA YASAK) */
+        .player-slot.left .name-tag, 
+        .player-slot.right .name-tag {
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            writing-mode: vertical-rl !important;
+            text-orientation: mixed !important;
+            white-space: nowrap !important;
+            height: fit-content !important;
+            width: fit-content !important;
+            margin: 0 !important;
+            padding: 10px 4px !important;
+            font-weight: 800 !important;
+            font-size: 0.85rem !important;
+            letter-spacing: 2px !important;
+            background: rgba(0,0,0,0.5) !important;
+            border-radius: 4px !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            transition: all 0.3s ease !important; /* Sadece renk geçişi için */
+        }
+
+        /* SIRA GELİNCE SADECE IŞILTISI DEĞİŞSİN, YERİ DEĞİL */
+        .player-slot.active-turn .name-tag {
+            border-color: #ffd700 !important;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.4) !important;
+            background: rgba(40, 30, 10, 0.8) !important;
+        }
+
+        /* AYRILMAZ SOL ÜST NİZAM - (i) SABİT, BAŞLIK SİLİNDİ */
+        .info-icon-btn {
+            position: absolute !important;
+            top: 15px !important;
+            left: 15px !important;
+            z-index: 4000 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        .game-title {
+            display: none !important; /* Kullanıcı isteği: Rahatsız edici başlık tamamen silindi */
+        }
+
+        /* ISTAKA VE TAŞ ATMA ALANLARI - ÜSTTEN HİZALANMIŞ NİZAM */
+        .user-rack-container {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: flex-start !important; /* Tüm ekranlarda yukarı hiza */
+            justify-content: center !important;
+            gap: 10px !important;
+            width: fit-content !important; 
+            max-width: 900px !important;
+            margin: 0 auto !important;
+        }
+
+        .static-side-discard, 
+        #discard-bot-1, 
+        #discard-user {
+            margin: 0 5px !important;
+            margin-top: 0 !important;
+            margin-bottom: auto !important; /* Dikey olarak en tepede tutar */
+            align-self: flex-start !important; 
+            width: 45px !important;
+            height: 60px !important;
+            background: rgba(0,0,0,0.4) !important;
+            border: 1px dashed rgba(255,255,255,0.2) !important;
+            border-radius: 4px !important;
+            flex-shrink: 0 !important;
+        }
+
+        .btn-divider { display: none !important; } /* Yer kazanmak için kaldırıldı */
+    </style>
 </head>
 
 <body>
@@ -29,17 +262,18 @@
         <div class="rotate-sub">101 Okey yatay modda oynanır</div>
     </div>
 
+    <div class="table-watermark">101 OKEY</div>
     <div id="game-container">
         <!-- Üst Menü / Navbar (Artık Oyun Konteynırı İçinde) -->
         <header class="top-nav">
-            <button class="nav-btn icon-only" id="info-btn" title="Bilgi">
+            <button class="nav-btn icon-only info-icon-btn" id="info-btn" title="Bilgi">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="12" y1="16" x2="12" y2="12"></line>
                     <line x1="12" y1="8" x2="12.01" y2="8"></line>
                 </svg>
             </button>
-            <div class="logo">101 OKEY PREMIUM</div>
+            <div class="logo" style="visibility: hidden !important; pointer-events: none !important;">101 OKEY PREMIUM</div>
             <div class="nav-actions">
                 <button class="nav-btn" id="show-yazboz"><span>📝</span> YAZ-BOZ</button>
                 <button class="nav-btn" id="new-game-top"><span>🔄</span> YENİLE</button>
@@ -108,30 +342,26 @@
             <div class="user-bottom" id="player-user">
                 <div class="user-rack-area">
                     <div class="name-tag user-name">Fatih</div>
-                    <!-- Aksiyon Butonları (Istaka Üstü) -->
-                    <div class="rack-actions">
-                        <button class="action-rect btn-sort" id="btn-sort-series">SERİ</button>
-                        <button class="action-rect btn-sort" id="btn-sort-pairs">ÇİFT</button>
-                        <button class="action-rect btn-draw" id="btn-draw-deck">TAŞ ÇEK</button>
-                        <div class="btn-divider"></div>
-                        <button class="action-rect btn-util" id="btn-open-series">SERİ AÇ</button>
-                        <button class="action-rect btn-util" id="btn-open-pairs">ÇİFT AÇ</button>
-                        <button class="action-rect btn-util" id="btn-process">İŞLE</button>
-                        <button class="action-rect btn-util" id="btn-discard">AT</button>
-                        <button class="action-rect btn-util" id="btn-undo">GERİ AL</button>
-
-                        <!-- El İstatistikleri -->
-                        <div class="hand-stats">
-                            <div class="stat-item"><span class="stat-label">PUAN:</span> <span id="hand-points">0</span>
-                            </div>
-                            <div class="stat-item"><span class="stat-label">ÇİFT:</span> <span id="hand-pairs">0</span>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="user-rack-container">
                         <div class="discard-zone static-side-discard" id="discard-bot-1"></div> <!-- Senin Solun -->
                         <div class="rack-wrapper">
+                            <!-- Köşelere Kilitli Kontroller (Sarı Çizgi Üstü) -->
+                            <div class="rack-actions">
+                                <button class="action-rect btn-sort" id="btn-sort-series">SERİ</button>
+                                <button class="action-rect btn-sort" id="btn-sort-pairs">ÇİFT</button>
+                                <div class="btn-divider"></div>
+                                <button class="action-rect btn-util" id="btn-open-series">SERİ AÇ</button>
+                                <button class="action-rect btn-open-pairs" id="btn-open-pairs">ÇİFT AÇ</button>
+                                <button class="action-rect btn-util" id="btn-process">İŞLE</button>
+                            </div>
+
+                            <div class="hand-stats">
+                                <div class="stat-item"><span class="stat-label">PUAN:</span> <span id="hand-points">0</span>
+                                </div>
+                                <div class="stat-item"><span class="stat-label">ÇİFT:</span> <span id="hand-pairs">0</span>
+                                </div>
+                            </div>
+
                             <div class="rack-grid">
                                 <div class="rack-row" id="row-1"></div>
                                 <div class="rack-row" id="row-2"></div>
