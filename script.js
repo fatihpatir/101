@@ -63,29 +63,42 @@ const AudioEngine = {
 
         const now = this.ctx.currentTime;
         if (type === 'discard') {
+            // Wood/Bone Click (Tok ve kısa ahşap tıklaması)
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(150, now);
-            osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 0.03); 
             gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
             osc.start(now);
-            osc.stop(now + 0.1);
+            osc.stop(now + 0.05);
         } else if (type === 'draw') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(400, now);
-            osc.frequency.exponentialRampToValueAtTime(600, now + 0.05);
+            // Soft Snap (Daha tiz, daha kırılgan çekme sesi)
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.exponentialRampToValueAtTime(150, now + 0.03);
             gain.gain.setValueAtTime(0.15, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
             osc.start(now);
             osc.stop(now + 0.05);
         } else if (type === 'open') {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(800, now);
-            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            // Harmony Chime (Huzurlu, tok bir onay/başarı melodisi, Do-Mi akoru)
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523.25, now); // C5
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
             osc.start(now);
-            osc.stop(now + 0.2);
+            osc.stop(now + 0.4);
+
+            const osc2 = this.ctx.createOscillator();
+            const gain2 = this.ctx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(this.ctx.destination);
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(659.25, now + 0.05); // E5
+            gain2.gain.setValueAtTime(0.15, now + 0.05);
+            gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+            osc2.start(now + 0.05);
+            osc2.stop(now + 0.45);
         }
     }
 };
@@ -2374,6 +2387,20 @@ document.addEventListener('DOMContentLoaded', () => {
             gameState.settings.sound = soundToggle.checked;
         }
 
+        // --- HAFIZAYA KAYDET (localStorage) ---
+        const prefs = {
+            names: { 
+                user: gameState.players.user.name, 
+                bot1: gameState.players.bot1.name, 
+                bot2: gameState.players.bot2.name, 
+                bot3: gameState.players.bot3.name 
+            },
+            rounds: roundsVal,
+            helpers: helpersToggle ? helpersToggle.checked : true,
+            sound: soundToggle ? soundToggle.checked : true
+        };
+        try { localStorage.setItem('okey101_prefs', JSON.stringify(prefs)); } catch(e) {}
+
         document.getElementById('settings-modal').style.display = 'none';
         showGameMessage(`Ayarlar Kaydedildi! (${roundsVal} el)`);
     };
@@ -2526,6 +2553,51 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeInstall) {
         closeInstall.onclick = () => installOverlay.style.display = 'none';
     }
+
+    // --- BAŞLANGIÇ HAFIZASINI YÜKLE (localStorage Restore) ---
+    try {
+        const data = localStorage.getItem('okey101_prefs');
+        if (data) {
+            const prefs = JSON.parse(data);
+            if (prefs.names) {
+                gameState.players.user.name = prefs.names.user || 'Sen';
+                gameState.players.bot1.name = prefs.names.bot1 || 'Samet';
+                gameState.players.bot2.name = prefs.names.bot2 || 'Deniz';
+                gameState.players.bot3.name = prefs.names.bot3 || 'Sinem';
+                
+                // Ayarlar Modalı Inputlarını Doldur
+                ['user','bot1','bot2','bot3'].forEach(pId => {
+                    const el = document.getElementById(`name-${pId}`);
+                    if (el) el.value = prefs.names[pId];
+                });
+
+                // Masa İsimlerini Çivile
+                const tgB1 = document.querySelector('#bot-1 .name-tag'); if(tgB1) tgB1.textContent = prefs.names.bot1;
+                const tgB2 = document.querySelector('#bot-2 .name-tag'); if(tgB2) tgB2.textContent = prefs.names.bot2;
+                const tgB3 = document.querySelector('#bot-3 .name-tag'); if(tgB3) tgB3.textContent = prefs.names.bot3;
+                const tgU = document.getElementById('user-name-plaque'); if(tgU) tgU.textContent = prefs.names.user;
+            }
+            if (prefs.rounds) {
+                gameState.maxRounds = prefs.rounds;
+                if (typeof roundsVal !== 'undefined') roundsVal = prefs.rounds;
+                const rd = document.getElementById('rounds-display'); if(rd) rd.textContent = prefs.rounds;
+            }
+            if (prefs.helpers !== undefined) {
+                const tgH = document.getElementById('toggle-helpers');
+                if(tgH) tgH.checked = prefs.helpers;
+                const uArea = document.getElementById('player-user');
+                if (uArea) {
+                    if (prefs.helpers) uArea.classList.remove('helpers-hidden');
+                    else uArea.classList.add('helpers-hidden');
+                }
+            }
+            if (prefs.sound !== undefined) {
+                gameState.settings.sound = prefs.sound;
+                const tgS = document.getElementById('toggle-sound');
+                if(tgS) tgS.checked = prefs.sound;
+            }
+        }
+    } catch(e) { console.warn("Hafıza okuma hatası", e); }
 
     // Başlangıç
     initGame();
