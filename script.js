@@ -2174,15 +2174,15 @@ function autoSortPairs() {
         }
     }
 
-    // 3. Kalan okeyleri (Varsa) hem kendi aralarında hem de kalan tektaşlarla çiftle
+    // 3. Kalan okeyleri (Varsa) KALAN TEKTAŞLARLA ÇİFTLE (Maksimum çift üret)
     while (okeys.length > 0) {
-        if (okeys.length >= 2) {
-            // İki okeyi (Örn: 2 Sahte veya 1 Gerçek 1 Sahte) bir çift yap
-            pairs.push([okeys.pop(), okeys.pop()]);
-        } else if (hand.length > 0) {
-            // Tek kalan okeyi, eldeki en büyük tektaşla çift yap (genelde puan için mantıklı)
+        if (hand.length > 0) {
+            // Bir okeyi, eldeki en büyük tektaşla çift yap (Daha fazla çift üretir)
             hand.sort((a, b) => b.number - a.number);
             pairs.push([okeys.pop(), hand.shift()]);
+        } else if (okeys.length >= 2) {
+            // Sadece okeyler kaldıysa, iki okeyi bir çift yap
+            pairs.push([okeys.pop(), okeys.pop()]);
         } else {
             // Sadece tek okey kaldıysa okeylere geri at (leftover gibi)
             break;
