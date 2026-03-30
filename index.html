@@ -163,16 +163,27 @@
         /* MOBİL ÖZEL HİZA VE ÖLÇÜLER (FORCE TOP ALIGN) */
         @media (max-width: 900px) {
             .rack-wrapper {
+                width: 98% !important;
+                max-width: 550px !important;
                 padding-top: 10px !important;
-                min-height: 80px !important;
+                min-height: 95px !important;
+            }
+            .rack-row {
+                min-height: 42px !important;
+                gap: 2px !important;
+                padding: 2px 4px !important;
+            }
+            .tile-slot {
+                min-width: 22px !important;
+                max-width: 28px !important;
             }
             .action-label, .action-btn, .action-rect, .stat-item {
                 font-size: 0.62rem !important;
                 padding: 3px 8px !important;
                 gap: 4px !important;
             }
-            .rack-actions { gap: 4px !important; }
-            .hand-stats { gap: 6px !important; }
+            .rack-actions { gap: 4px !important; z-index: 6000 !important; }
+            .hand-stats { gap: 6px !important; z-index: 6000 !important; }
             .stat-item span { margin-left: 4px !important; }
         }
 

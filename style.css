@@ -1635,12 +1635,9 @@ body.dragging-mode .pair-group::after {
     .bot-rack-top { width: 120px; height: 22px; }
     .bot-rack-left, .bot-rack-right { width: 22px; height: 120px; }
 
-    .user-rack-area { max-width: 440px; }
-    .rack-wrapper { max-width: 440px; }
-    .tile-slot { max-width: 20px; }
-    .tile-spacer { width: 5px; height: 32px; }
+    /* --- MOBİL ISTAKA ALANI RESTORASYONU (DARALMAYI KALDIRDIK) --- */
 
-    .action-rect { font-size: 0.45rem; padding: 2px 4px; height: 18px; }
+
 }
 
 
