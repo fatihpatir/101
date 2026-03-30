@@ -34,8 +34,63 @@ let gameState = {
         phantom: null,
         sourceType: null,
         draggedTileId: null
+    },
+    settings: {
+        sound: true
     }
 };
+
+// --- SES MOTORU (AudioContext Synthetic) ---
+const AudioEngine = {
+    ctx: null,
+    init() {
+        if (!this.ctx) {
+            try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+        }
+        if (this.ctx && (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted')) {
+            this.ctx.resume();
+        }
+    },
+    play(type) {
+        if (!gameState.settings || !gameState.settings.sound) return;
+        this.init(); 
+        if (!this.ctx) return;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        const now = this.ctx.currentTime;
+        if (type === 'discard') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'draw') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.05);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+            osc.start(now);
+            osc.stop(now + 0.05);
+        } else if (type === 'open') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        }
+    }
+};
+
+window.addEventListener('click', () => AudioEngine.init(), { once: true });
 
 // --- TILE (TAŞ) SINIFI ---
 class Tile {
@@ -435,6 +490,7 @@ function openSeries() {
 
     player.hasOpened = true;
     player.openedType = 'series';
+    AudioEngine.play('open');
     renderAll();
     showGameMessage(isAlreadyOpen ? "Yeni perler masaya indi." : "Tebrikler, masaya 101 açıldı!");
 }
@@ -515,6 +571,7 @@ function openPairs() {
     if (player.openedType === null) player.openedType = 'pairs';
     gameState.pairsOpened = true;
 
+    AudioEngine.play('open');
     renderAll();
     showGameMessage(isFirstTime ? "Tebrikler, masaya 5 çift açıldı!" : "Çiftler masaya indi.");
 }
@@ -951,11 +1008,11 @@ function updateTurnUI() {
     
     if (playerEl) {
         playerEl.classList.add('active-turn');
-        const nameTag = playerEl.querySelector('.name-tag');
-        if (nameTag) nameTag.classList.add('active-turn');
+        // İsimlerin zıplamasını engellemek için nameTag.add(active-turn) kaldırıldı.
     }
 
     // Deste parlaması
+    // Deste parlaması (SADECE SARI ÇERÇEVE)
     const deckPile = document.getElementById('deck-pile');
     if (deckPile) {
         if (currentId === 'user' && !gameState.hasDrawn) deckPile.classList.add('your-turn-pulse');
@@ -989,6 +1046,7 @@ function handleDraw(targetIdx = -1) {
     if (finalIdx !== -1) gameState.userRackSlots[finalIdx] = newTile;
 
     gameState.hasDrawn = true;
+    AudioEngine.play('draw');
     renderAll();
     logDebug("Taş Çekildi");
 }
@@ -1022,6 +1080,7 @@ function processUserDiscard(tileId) {
     const rackIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
     if (rackIdx !== -1) gameState.userRackSlots[rackIdx] = null;
 
+    AudioEngine.play('discard');
     renderDiscard('user', tile);
     gameState.selectedTileIds.delete(tileId);
 
@@ -1070,7 +1129,7 @@ async function botPlay() {
             await animateTileMovement(deckEl, botEl, pulledTile, true); // Bot çekerken taş kapalı (true)
         }
 
-
+        AudioEngine.play('draw');
         
         bot.hand.push(pulledTile);
         updateDeckCount();
@@ -1103,6 +1162,7 @@ async function botPlay() {
             }
             bot.hasOpened = true;
             bot.openedType = 'series';
+            AudioEngine.play('open');
             showGameMessage(`${bot.name} seriden açtı! 🚀`);
         } else if (bot.openedType === 'series' && gameState.pairsOpened && pairs.length > 0) {
             // Seri açmış bir bot, eğer çift alanı aktifse kalan çiftlerini insin
@@ -1117,6 +1177,7 @@ async function botPlay() {
                 renderAll();
                 await new Promise(r => setTimeout(r, 200));
             }
+            AudioEngine.play('open');
             showGameMessage(`${bot.name} elindeki çiftleri döküyor! 🔥`);
         } else if (!bot.hasOpened && totalPairs >= 5 && !gameState.pairsOpened) {
             // Çift Aç (Animasyonlu)
@@ -1134,6 +1195,7 @@ async function botPlay() {
             bot.hasOpened = true;
             bot.openedType = 'pairs';
             gameState.pairsOpened = true;
+            AudioEngine.play('open');
             showGameMessage(`${bot.name} çiftten açtı! 🔥`);
         }
 
@@ -1213,6 +1275,7 @@ async function botPlay() {
             await animateTileMovement(botEl, discardEl, tileToDiscard);
         }
 
+        AudioEngine.play('discard');
         renderDiscard(botId, tileToDiscard);
 
         
@@ -1536,7 +1599,7 @@ function renderDiscardZone(playerId) {
             const isStealableCandidate = isLastInThisZone && isMostRecentDiscard && (playerId === previousPlayerId) && isUserTurn && !gameState.hasDrawn;
 
             if (isStealableCandidate) {
-                tileEl.classList.add('stealable-pulse');
+                // Taşı çalma vurgusu (Kullanıcı isteğiyle kaldırıldı, sadece tıklama aktif)
                 tileEl.style.cursor = 'pointer';
                 tileEl.onclick = (e) => {
                     e.stopPropagation();
@@ -1856,43 +1919,8 @@ function showGameMessage(msg) {
 // Debug console removed
 
 // --- GÖRSEL EFEKTLER VE ANİMASYONLAR ---
-async function animateTileMovement(startEl, endEl, tile, isFlipped = false) {
-    if (!startEl || !endEl || !tile) return;
-    
-    const startRect = startEl.getBoundingClientRect();
-    const endRect = endEl.getBoundingClientRect();
-    
-    // Geçici olarak taşın durumunu ayarla (Çekerken kapalı, işlerken açık)
-    const originalFlipped = tile.isFlipped;
-    tile.isFlipped = isFlipped;
-    const ghost = tile.createHTMLElement(true);
-    tile.isFlipped = originalFlipped; // Orijinali bozma
-    
-    ghost.style.position = 'fixed';
-    ghost.style.left = `${startRect.left}px`;
-    ghost.style.top = `${startRect.top}px`;
-    ghost.style.width = '32px';    /* Boyut sabitlendi */
-    ghost.style.height = '48px';   /* Boyut sabitlendi */
-    ghost.style.zIndex = '100000';
-    ghost.style.transition = 'all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)';
-    ghost.style.pointerEvents = 'none';
-    ghost.style.boxShadow = '0 5px 15px rgba(0,0,0,0.5)';
-    ghost.style.borderRadius = '4px';
-    
-    document.body.appendChild(ghost);
-    
-    // Reflow
-    void ghost.offsetWidth;
-    
-    ghost.style.left = `${endRect.left + (endRect.width/2 - 16)}px`;
-    ghost.style.top = `${endRect.top + (endRect.height/2 - 24)}px`;
-    
-    return new Promise(resolve => {
-        setTimeout(() => {
-            ghost.remove();
-            resolve();
-        }, 650);
-    });
+async function animateTileMovement() {
+    return Promise.resolve();
 }
 
 
@@ -2329,7 +2357,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const el = document.querySelector(sel);
             if (el) el.textContent = gameState.players[pId].name;
         });
-        const userNameTag = document.querySelector('.user-name');
+        const userNameTag = document.getElementById("user-name-plaque");
         if (userNameTag) userNameTag.textContent = gameState.players.user.name;
         gameState.maxRounds = roundsVal;
         // Apply helpers toggle
@@ -2339,8 +2367,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (helpersToggle.checked) userArea.classList.remove('helpers-hidden');
             else userArea.classList.add('helpers-hidden');
         }
+        
+        // Apply sound toggle
+        const soundToggle = document.getElementById('toggle-sound');
+        if (soundToggle) {
+            gameState.settings.sound = soundToggle.checked;
+        }
+
         document.getElementById('settings-modal').style.display = 'none';
-        showGameMessage(`Kaydedildi! (${roundsVal} el)`);
+        showGameMessage(`Ayarlar Kaydedildi! (${roundsVal} el)`);
     };
 
     // Modallara arka plan tıklamasıyla kapat

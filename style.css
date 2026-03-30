@@ -253,13 +253,7 @@ body {
     z-index: 100;
 }
 
-.active-turn .name-tag {
-    color: #fff !important;
-    background: #e65100 !important;
-    border: 2px solid #ffd700 !important; /* Net sarı çerçeve */
-    box-shadow: none !important; /* Gölgeli parlama kaldırıldı */
-    transform: scale(1.1) !important;
-}
+
 
 
 .name-tag {
@@ -286,14 +280,7 @@ body {
     transform: rotate(90deg);
 }
 
-/* Sıra onlara gelince rotasyonu koruyarak büyü (Yamulmasın!) */
-.player-slot.left.active-turn .name-tag {
-    transform: rotate(-90deg) scale(1.15) !important;
-}
 
-.player-slot.right.active-turn .name-tag {
-    transform: rotate(90deg) scale(1.15) !important;
-}
 
 /* Atılan Taş Bölgeleri (Minimalist Yuva) - Sadece referans, pozisyonlar inline konteynerlarda */
 .discard-zone {
@@ -333,7 +320,6 @@ body {
 }
 
 .stealable-tile {
-    animation: steal-pulse 1s infinite;
     cursor: pointer !important;
     z-index: 999 !important;
     border: 2px solid #ffd700 !important;
@@ -1055,25 +1041,7 @@ body.dragging-mode .pair-group::after {
 }
 */
 
-/* User Rack Area & Integrated Actions */
-/* KULLANICI ADI - LÜKS KAZINMIŞ GÜMÜŞ PANEL */
-.user-rack-area .user-name.name-tag,
-#player-user.active-turn .user-name.name-tag {
-    position: absolute !important;
-    top: 10px !important;
-    left: 15px !important;
-    background: transparent !important;
-    background-color: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    color: #ffffff !important;
-    font-family: 'Permanent Marker', cursive !important;
-    font-size: 1.3rem !important;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-    transform: none !important;
-    z-index: 1000 !important;
-}
+/* --- ESKİ İSİM PANELİ TEMİZLENDİ (YENİ SİSTEME GEÇİLDİ) --- */
 
 /* AKSİYON BUTONLARI - AHŞABA OYULMUŞ PANEL */
 
@@ -1455,24 +1423,6 @@ body.dragging-mode .pair-group::after {
         display: block !important;
     }
 
-    @keyframes stealable-pulse {
-        0% { filter: brightness(1); transform: scale(1.2); }
-        50% { filter: brightness(1.5); transform: scale(1.3); }
-        100% { filter: brightness(1); transform: scale(1.2); }
-    }
-    .stealable-pulse {
-        animation: stealable-pulse 1.5s infinite ease-in-out !important;
-        border: 2px solid #ffd700 !important;
-        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8) !important;
-        z-index: 100001 !important;
-    }
-
-
-
-
-
-
-
     /* Üst Bot (Faruk) Atma Alanları - Simetrik ve Dengeli */
     .bot-rack-container .static-side-discard#discard-bot-2 { 
         left: -45px !important; 
@@ -1550,23 +1500,9 @@ body.dragging-mode .pair-group::after {
         z-index: 200 !important;
     }
     
-    .player-slot.active-turn .name-tag {
-        top: 50% !important;
-        transform: translateY(-50%) scale(1.1) !important;
-        border-color: #fbc02d !important;
-        box-shadow: 0 0 10px rgba(251, 192, 45, 0.5) !important;
-    }
 
-    .user-name {
-        position: absolute !important;
-        bottom: 2px !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        height: auto !important;
-        padding: 1px 12px !important;
-        font-size: 0.58rem !important;
-        z-index: 200 !important;
-    }
+
+    /* --- KULLANICI İSMİ POZİSYONLAMA KURALLARI TEMİZLENDİ --- */
 
 
 
@@ -1820,32 +1756,7 @@ body.dragging-mode .pair-group::after {
     }
 }
 
-/* --- TURN INDICATOR PULSE --- */
-.name-tag.active-turn {
-    background: #ffd700 !important;
-    color: #1a4d2e !important;
-    box-shadow: 0 0 15px #ffd700, 0 0 5px rgba(255, 215, 0, 0.5);
-    animation: turn-pulse 1.5s infinite ease-in-out;
-    border: 1px solid #fff;
-    transform: scale(1.1);
-}
-
-@keyframes turn-pulse {
-    0% {
-        box-shadow: 0 0 5px #ffd700;
-        transform: scale(1.1);
-    }
-
-    50% {
-        box-shadow: 0 0 20px #ffd700, 0 0 10px rgba(255, 215, 0, 0.8);
-        transform: scale(1.15);
-    }
-
-    100% {
-        box-shadow: 0 0 5px #ffd700;
-        transform: scale(1.1);
-    }
-}
+/* --- GİZLİ TURN INDICATOR PUSUSU TEMİZLENDİ --- */
 
 /* Atma Alanı Hit-Box Genişletme (Görünmez Katman) */
 .discard-zone::before {
@@ -1877,43 +1788,11 @@ body.dragging-mode .discard-zone#discard-user {
     }
 }
 
-/* Turn Pulse Animation: Daha Büyük ve Belirgin */
+/* --- TÜM PARLAMA VE ANİMASYONLAR TASFİYE EDİLDİ --- */
 .your-turn-pulse {
-    animation: pulse-gold-full 1.2s infinite ease-in-out !important;
-    border: 3px solid #ffd700 !important;
-    box-shadow: 0 0 40px #ffd700, inset 0 0 15px rgba(255, 215, 0, 0.4) !important;
-    z-index: 200 !important;
-    cursor: pointer;
-    position: relative;
-    /* Before effecti için */
-}
-
-/* Tıklama Alanını Genişletme (Gizli Katman - 60x70px) */
-.deck-pile::after {
-    content: '';
-    position: absolute;
-    top: -15px;
-    left: -15px;
-    right: -15px;
-    bottom: -15px;
-    z-index: 10;
-}
-
-@keyframes pulse-gold-full {
-    0% {
-        transform: scale(1);
-        filter: brightness(1);
-    }
-
-    50% {
-        transform: scale(1.15);
-        filter: brightness(1.3);
-    }
-
-    100% {
-        transform: scale(1);
-        filter: brightness(1);
-    }
+    border: 3px solid #fbc02d !important;
+    box-shadow: none !important;
+    animation: none !important;
 }
 
 /* Taşa Basınca Geri Bildirim (Tactile Feel) */

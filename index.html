@@ -17,42 +17,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Permanent+Marker&display=swap"
         rel="stylesheet">
     <style>
-        /* HAVADA YÜZEN KONTROLLER - YEŞİL MASADAKİ FERAH PANEL */
-        .user-rack-area {
-            position: relative !important;
-            padding-top: 40px !important; 
-            display: flex !important;
-            justify-content: center !important;
-            align-items: flex-start !important; /* Dikey kaymaları engellemek için yukarı çapa attık */
-        }
-        
-        /* KULLANICI ADI - LÜKS MARKA OYMA (OUTFIT PRESTİJ STİLİ) */
-        .user-rack-area .user-name.name-tag, 
-        #player-user.active-turn .user-name.name-tag {
-            position: absolute !important;
-            left: 50% !important; 
-            top: 108px !important; /* İki sıra taşın arasındaki o nizamî boşluk */
-            transform: translate(-50%, -50%) !important;
-            color: rgba(255, 255, 255, 0.45) !important; /* Asil, yarı saydam beyaz filigran */
-            background: none !important;
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            font-family: 'Outfit', sans-serif !important; /* Daha prestijli ve modern font */
-            font-size: 0.85rem !important; /* Küçük ve elit punto */
-            font-weight: 800 !important;
-            letter-spacing: 3px !important; /* Harfler arası asil boşluk (Luxury Marka Etkisi) */
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
-            opacity: 1 !important;
-            z-index: 5000 !important; /* Her şeyin üstünde */
-            display: block !important;
-            visibility: visible !important;
-            text-transform: uppercase;
-            width: auto !important;
-            height: auto !important;
-            text-align: center !important;
-            pointer-events: none !important;
-        }
 
         .rack-actions {
             position: absolute !important;
@@ -138,11 +102,7 @@
             pointer-events: auto !important;
         }
 
-        .stat-item span {
-            color: #fbc02d !important;
-            font-weight: 950 !important;
-            margin-left: 8px !important;
-        }
+
 
         /* --- ISTAKA TEMEL YAPISI --- */
         .rack-wrapper {
@@ -226,7 +186,7 @@
             background: rgba(0,0,0,0.5) !important;
             border-radius: 4px !important;
             border: 1px solid rgba(255,255,255,0.1) !important;
-            transition: all 0.3s ease !important; /* Sadece renk geçişi için */
+            transition: all 0.3s ease !important;
         }
 
         /* SIRA GELİNCE SADECE IŞILTISI DEĞİŞSİN, YERİ DEĞİL */
@@ -372,7 +332,6 @@
 
             <div class="user-bottom" id="player-user">
                 <div class="user-rack-area">
-                    <div class="name-tag user-name">Fatih</div>
                     <div class="user-rack-container">
                         <div class="discard-zone static-side-discard" id="discard-bot-1"></div> <!-- Senin Solun -->
                         <div class="rack-wrapper">
@@ -380,10 +339,12 @@
                             <div class="rack-actions">
                                 <button class="action-rect btn-sort" id="btn-sort-series">SERİ</button>
                                 <button class="action-rect btn-sort" id="btn-sort-pairs">ÇİFT</button>
-                                <div class="btn-divider"></div>
+                                <div class="btn-divider" style="width: 1px; height: 16px; background: rgba(251, 192, 45, 0.2); margin: 0 4px;"></div>
                                 <button class="action-rect btn-util" id="btn-open-series">SERİ AÇ</button>
                                 <button class="action-rect btn-open-pairs" id="btn-open-pairs">ÇİFT AÇ</button>
                                 <button class="action-rect btn-util" id="btn-process">İŞLE</button>
+                                <div class="btn-divider" style="width: 1px; height: 16px; background: rgba(251, 192, 45, 0.2); margin: 0 6px;"></div>
+                                <div class="action-rect" id="user-name-plaque" style="background: rgba(62, 39, 35, 0.9) !important; color: #fbc02d !important; font-weight: 950 !important; cursor: default !important; pointer-events: none !important; border-color: rgba(251, 192, 45, 0.4) !important;">FATİH</div>
                             </div>
 
                             <div class="hand-stats">
@@ -469,6 +430,10 @@
                 <div class="toggle-row">
                     <label for="toggle-helpers">Yardımcı Butonlar (Seri, Çift, vb.)</label>
                     <input type="checkbox" id="toggle-helpers" checked>
+                </div>
+                <div class="toggle-row">
+                    <label for="toggle-sound">Oyun Sesleri (Tık, Ding, vb.)</label>
+                    <input type="checkbox" id="toggle-sound" checked>
                 </div>
             </div>
 
