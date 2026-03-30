@@ -152,8 +152,28 @@
             border-radius: 8px 8px 15px 15px !important;
             box-shadow: 0 0 0 2px #fbc02d, 0 20px 40px rgba(0,0,0,0.7) !important;
             position: relative !important;
-            width: fit-content !important;
+            width: 96% !important;
+            max-width: 520px !important;
             margin: 0 auto !important;
+            min-height: 90px !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        /* MOBİL ÖZEL HİZA VE ÖLÇÜLER (FORCE TOP ALIGN) */
+        @media (max-width: 900px) {
+            .rack-wrapper {
+                padding-top: 10px !important;
+                min-height: 80px !important;
+            }
+            .action-label, .action-btn, .action-rect, .stat-item {
+                font-size: 0.62rem !important;
+                padding: 3px 8px !important;
+                gap: 4px !important;
+            }
+            .rack-actions { gap: 4px !important; }
+            .hand-stats { gap: 6px !important; }
+            .stat-item span { margin-left: 4px !important; }
         }
 
         /* MASAÜSTÜ HAYALET MÜHÜR (CENTER WATERMARK) */
