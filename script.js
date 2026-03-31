@@ -38,7 +38,8 @@ let gameState = {
     settings: {
         sound: true
     },
-    stoleDiscard: false // NEW: Yandan taş alma takibi
+    stoleDiscard: false, // NEW: Yandan taş alma takibi
+    turnInitialTableUserCount: 0
 };
 
 // --- SES MOTORU (AudioContext Synthetic) ---
@@ -143,9 +144,19 @@ class Tile {
         if (gameState.selectedTileIds.has(this.id)) div.classList.add('selected');
 
         // Interaktif Olaylar
+        let lastTapTime = 0;
         div.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleTileSelection(this.id);
+            const now = Date.now();
+            if (now - lastTapTime < 300) {
+                if (gameState.turnOrder[gameState.currentTurnIndex] === 'user') {
+                     if (!attemptAutoProcessTile(this.id)) attemptOpenCluster(this.id);
+                }
+                lastTapTime = 0;
+            } else {
+                toggleTileSelection(this.id);
+                lastTapTime = now;
+            }
         });
 
         // Mobile için hızlı seçim ve rotasyon (Drag ile çakışmayı önleyerek)
@@ -177,7 +188,6 @@ class Tile {
                 e.preventDefault();
                 return;
             }
-            if (!div.classList.contains('face-up')) { e.preventDefault(); return; }
             e.dataTransfer.setData('tileId', this.id);
             div.classList.add('dragging');
         });
@@ -286,6 +296,11 @@ function dealTiles() {
 
     // Sırayı başlatan kişiye ver
     gameState.currentTurnIndex = gameState.startingPlayerIdx;
+    if (playersIds[gameState.currentTurnIndex] === 'user') {
+        gameState.turnInitialTableUserCount = gameState.table.user.length;
+    } else {
+        gameState.turnInitialTableUserCount = 0;
+    }
     
     // KURAL: 22 taşla başlayan kişi çekmeden (zaten 22 var) direkt atarak başlar.
     // Bu yüzden hasDrawn'ı başlangıçta sadece sıra kendisinde olan VE 22 taşı olan için true yapıyoruz.
@@ -296,6 +311,7 @@ function dealTiles() {
 
 // --- RENDERING (ARAYÜZ ÇİZİMİ) ---
 function renderAll() {
+    document.querySelectorAll('.phantom-drag').forEach(el => el.remove());
     renderUserRack();
     renderIndicator();
     renderTable(); // Masaya açılanları göster
@@ -347,10 +363,23 @@ function renderTable() {
             }
 
             // --- HİBRİT İŞLEME MANTIĞI: Hem Tıkla-İşle Hem Sürükle-Bırak ---
+            let groupTapTime = 0;
             groupEl.onclick = (e) => {
-                if (gameState.selectedTileIds.size === 1) {
-                    const tileId = [...gameState.selectedTileIds][0];
-                    handleProcessTile(tileId, groupIdx, owner);
+                e.stopPropagation();
+                const now = Date.now();
+                if (now - groupTapTime < 300) {
+                    if (owner === 'user' && groupIdx >= gameState.turnInitialTableUserCount) {
+                        returnGroupToRack(groupIdx);
+                    } else if (owner === 'user') {
+                        showGameMessage("Önceki ellerde açtığınız perleri geri alamazsınız!");
+                    }
+                    groupTapTime = 0;
+                } else {
+                    if (gameState.selectedTileIds.size === 1) {
+                        const tileId = [...gameState.selectedTileIds][0];
+                        handleProcessTile(tileId, groupIdx, owner);
+                    }
+                    groupTapTime = now;
                 }
             };
 
@@ -491,6 +520,9 @@ function openSeries() {
     }
 
     // 2. MASAYA SER VE ISTAKADAN SİL
+    openedGroups.forEach(group => {
+        if (getRunPoints(group) > 0) sortRunGroupInPlace(group);
+    });
     gameState.table.user.push(...openedGroups);
 
     // Her bir taşı hand içinden de sil
@@ -953,6 +985,7 @@ function startNewHand() {
     gameState.startingPlayerIdx = savedStartingIdx; // NEW
     gameState.roundPenalties = { user: 0, bot1: 0, bot2: 0, bot3: 0 };
     gameState.stoleDiscard = false;
+    gameState.turnInitialTableUserCount = 0;
 
     for (let p in gameState.players) {
         gameState.players[p].name = savedNames[p];
@@ -1084,6 +1117,44 @@ function processUserDiscard(tileId) {
     const tile = gameState.players.user.hand.find(t => t.id === tileId);
     if (!tile) return;
 
+    // --- EVALUATE TABLE IF NOT OFFICIALLY OPENED YET ---
+    if (!gameState.players.user.hasOpened) {
+        const groups = gameState.table.user || [];
+        if (groups.length > 0) {
+            let totalPts = 0;
+            let totalPairs = 0;
+            let hasSeries = false;
+
+            groups.forEach(g => {
+                const res = evaluateCluster(g);
+                totalPts += res.points;
+                if (res.pairs === 1) totalPairs++;
+                if (res.points > 0) hasSeries = true;
+            });
+
+            if (!hasSeries && totalPairs > 0) {
+                if (totalPairs >= 5) {
+                    gameState.players.user.hasOpened = true;
+                    gameState.players.user.openedType = 'pairs';
+                    gameState.pairsOpened = true;
+                    showGameMessage("Tebrikler, 5 çift ile açtınız! 🎉");
+                } else {
+                    showGameMessage(`Masada ${totalPairs} çift var, 5 çift gerekli! Masadakileri çift tıklayarak geri toplayın veya tamamlayın.`, "error");
+                    return; 
+                }
+            } else if (totalPts > 0) {
+                if (totalPts >= 101) {
+                    gameState.players.user.hasOpened = true;
+                    gameState.players.user.openedType = 'series';
+                    showGameMessage("Tebrikler, seriden açtınız! 🎉");
+                } else {
+                    showGameMessage(`Masadaki perleriniz ${totalPts} puan. Baraj 101! Masadakileri çift tıklayarak geri toplayın veya barajı geçin.`, "error");
+                    return; 
+                }
+            }
+        }
+    }
+
     // --- İŞLEK TAŞ KONTROLÜ (CEZA) ---
     let isIshlek = false;
     const owners = ['user', 'bot1', 'bot2', 'bot3'];
@@ -1123,12 +1194,17 @@ function processUserDiscard(tileId) {
     }
 
     // --- KURAL: OKEY ATMA CEZASI ---
-    if (isWildCard(tile)) {
+    if (isWildCard(tile) && gameState.players.user.hand.length > 0) {
         gameState.roundPenalties.user += 101;
         showGameMessage("OKEY ATTIN! +101 Ceza! 🔴", "error");
     }
 
     if (gameState.players.user.hand.length === 0) {
+        if (isWildCard(tile)) {
+            showGameMessage("OKEY DIŞARI! Harika Bitiş (Çifte Ödül)! 🚀");
+        } else {
+            showGameMessage("TEBRİKLER, EL BİTTİ! 🎯");
+        }
         finishRound('user', tile);
         return;
     }
@@ -1151,7 +1227,9 @@ function nextTurn() {
     renderAllDiscardZones(); // Çalınabilir taş durumunu güncelle
 
     const currentPlayerId = gameState.turnOrder[gameState.currentTurnIndex];
-    if (currentPlayerId !== 'user') {
+    if (currentPlayerId === 'user') {
+        gameState.turnInitialTableUserCount = gameState.table.user.length;
+    } else {
         setTimeout(botPlay, 1000);
     }
 }
@@ -1196,6 +1274,7 @@ async function botPlay() {
                 if (botEl && targetArea) {
                     await animateTileMovement(botEl, targetArea, group[0]); // Sembolik olarak ilk taşla animasyon
                 }
+                if (getRunPoints(group) > 0) sortRunGroupInPlace(group);
                 gameState.table[botId].push(group);
                 group.forEach(t => removeTileFromList(bot.hand, t));
                 renderAll();
@@ -1415,6 +1494,7 @@ async function botProcessTiles(botId) {
                                 const min = Math.min(...nums);
                                 if (!isWildCard(tile) && tile.number < min) group.unshift(tile);
                                 else group.push(tile);
+                                sortRunGroupInPlace(group);
                             } else {
                                 group.push(tile);
                             }
@@ -1501,12 +1581,15 @@ function autoProcessUserTiles() {
                     const tile = gameState.userRackSlots[i];
                     if (!tile) continue;
 
+                    if (isWildCard(tile)) continue; // OKEY OTOMATİK İŞLENMESİN
+
                     if (isValidAddition(tile, group)) {
                         if (getRunPoints(group) > 0) {
                             const nums = group.filter(t => !isWildCard(t)).map(t => t.number);
                             const min = Math.min(...nums);
                             if (!isWildCard(tile) && tile.number < min) group.unshift(tile);
                             else group.push(tile);
+                            sortRunGroupInPlace(group);
                         } else {
                             group.push(tile);
                         }
@@ -1530,6 +1613,168 @@ function autoProcessUserTiles() {
     } else {
         showGameMessage("Elinizde işlenecek taş bulunamadı.");
     }
+}
+
+function attemptAutoProcessTile(tileId) {
+    if (!gameState.players.user.hasOpened || !gameState.hasDrawn) return false;
+
+    const rackIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
+    if (rackIdx === -1) return false;
+    const tile = gameState.userRackSlots[rackIdx];
+
+    // Okey yanlışlıkla otomatik işlenmesin (Okey her yere uyuyor çünkü)
+    if (isWildCard(tile)) {
+        showGameMessage("Okey taşı çift tıklamayla işlenemez. Lütfen işleyeceğiniz pere sürükleyin.");
+        return false;
+    }
+
+    const owners = ['user', 'bot1', 'bot2', 'bot3'];
+    let stealAction = null;
+    let processActions = [];
+
+    for (const owner of owners) {
+        const groups = gameState.table[owner] || [];
+        for (let gIdx = 0; gIdx < groups.length; gIdx++) {
+            const group = groups[gIdx];
+            
+            const okeyInGroupIdx = group.findIndex(t => isWildCard(t));
+            if (okeyInGroupIdx !== -1) {
+                const subs = getOkeySubstitutes(group);
+                const targetOkey = group[okeyInGroupIdx];
+                const requiredTile = subs[targetOkey.id];
+
+                if (requiredTile) {
+                    const matchesNumber = tile.number === requiredTile.number;
+                    const matchesColor = requiredTile.multipleColors 
+                        ? !group.some(t => t.color === tile.color && !isWildCard(t))
+                        : tile.color === requiredTile.color;
+
+                    if (matchesNumber && matchesColor) {
+                        stealAction = { group, okeyInGroupIdx, targetOkey, owner };
+                        break;
+                    }
+                }
+            }
+
+            if (isValidAddition(tile, group)) {
+                processActions.push({ group, owner, gIdx });
+            }
+        }
+        if (stealAction) break;
+    }
+
+    // ÖNCELİK 1: OKEY ÇALMA İMKANI VARSA
+    if (stealAction) {
+        const { group, okeyInGroupIdx, targetOkey, owner } = stealAction;
+        group[okeyInGroupIdx] = tile;
+        gameState.userRackSlots[rackIdx] = targetOkey;
+        targetOkey.isFlipped = false;
+        gameState.players.user.hand = gameState.players.user.hand.filter(t => t.id !== tile.id);
+        gameState.players.user.hand.push(targetOkey);
+        if (owner !== 'user') gameState.players[owner].score += 101;
+        showGameMessage("Okey başarıyla çalındı! 🔥");
+        renderAll();
+        return true;
+    }
+
+    // ÖNCELİK 2: NORMAL İŞLEME
+    if (processActions.length > 0) {
+        if (processActions.length > 1) {
+            showGameMessage("Bu taş birden fazla yere uyuyor! Lütfen doğru pere manuel sürükleyin.");
+            return true;
+        } else {
+            const { group, owner, gIdx } = processActions[0];
+            if (getRunPoints(group) > 0) {
+                group.push(tile);
+                sortRunGroupInPlace(group);
+            } else {
+                group.push(tile);
+            }
+            gameState.userRackSlots[rackIdx] = null;
+            gameState.players.user.hand = gameState.players.user.hand.filter(t => t.id !== tileId);
+            AudioEngine.play('discard');
+            renderAll();
+            showGameMessage("Taş otomatik işlendi! 🚀");
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function attemptOpenCluster(tileId) {
+    if (!gameState.hasDrawn) { showGameMessage("Önce taş çekmelisiniz!"); return false; }
+    
+    let cluster = [];
+    let startIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
+    if (startIdx === -1) return false;
+
+    let left = startIdx;
+    while (left > 0 && gameState.userRackSlots[left - 1] !== null) left--;
+    let right = startIdx;
+    while (right < 39 && gameState.userRackSlots[right + 1] !== null) right++;
+
+    for (let i = left; i <= right; i++) {
+        cluster.push(gameState.userRackSlots[i]);
+    }
+
+    const { points, pairs } = evaluateCluster(cluster);
+    const isRunOrSet = points > 0;
+
+    if (isRunOrSet || (pairs === 1 && cluster.length === 2)) {
+        if (gameState.players.user.openedType === 'pairs' && isRunOrSet) { showGameMessage("Çiftten açtınız!"); return false; }
+        if (gameState.players.user.openedType === 'series' && pairs === 1 && !gameState.pairsOpened) { showGameMessage("Masada çift açılmadı!"); return false; }
+
+        if (getRunPoints(cluster) > 0) sortRunGroupInPlace(cluster);
+        gameState.table.user.push(cluster);
+        
+        for (let i = left; i <= right; i++) {
+            gameState.userRackSlots[i] = null;
+            gameState.players.user.hand = gameState.players.user.hand.filter(t => t.id !== cluster[i - left].id);
+        }
+        AudioEngine.play('open');
+        renderAll();
+        return true;
+    }
+
+    showGameMessage("Bağımsız bir per/çift değil. Etrafını boşluklarla ayırın.");
+    return false;
+}
+
+function returnGroupToRack(groupIdx) {
+    if (gameState.turnOrder[gameState.currentTurnIndex] !== 'user') return;
+    
+    const group = gameState.table.user[groupIdx];
+    if (!group) return;
+
+    let emptySlotsCount = gameState.userRackSlots.filter(t => t === null).length;
+    if (emptySlotsCount < group.length) {
+        showGameMessage("Istakada yeterli boş yer yok!");
+        return;
+    }
+
+    group.forEach(t => {
+        const emptyIdx = gameState.userRackSlots.indexOf(null);
+        gameState.userRackSlots[emptyIdx] = t;
+        gameState.players.user.hand.push(t);
+    });
+
+    gameState.table.user.splice(groupIdx, 1);
+
+    let totalPts = 0; let totalPairs = 0;
+    gameState.table.user.forEach(g => {
+        const res = evaluateCluster(g);
+        totalPts += res.points;
+        if (res.pairs === 1) totalPairs++;
+    });
+
+    if (totalPts < 101 && totalPairs < 5) {
+        gameState.players.user.hasOpened = false;
+        gameState.players.user.openedType = null;
+    }
+
+    AudioEngine.play('draw');
+    renderAll();
 }
 
 function handleProcessTile(tileId, groupIdx, owner) {
@@ -1581,7 +1826,10 @@ function handleProcessTile(tileId, groupIdx, owner) {
 
     if (isNowRun || isNowSet) {
         group.push(tile);
-        if (isNowRun) group.sort((a, b) => a.number - b.number);
+        if (isNowRun) {
+            group.sort((a, b) => a.number - b.number);
+            sortRunGroupInPlace(group);
+        }
         
         gameState.userRackSlots[rackIdx] = null;
         gameState.players.user.hand = gameState.players.user.hand.filter(t => t.id !== tileId);
@@ -1911,6 +2159,10 @@ function handleTouchEnd(e) {
             const rect = document.getElementById('discard-user')?.getBoundingClientRect();
             let isInDiscard = !!discard;
 
+            const processSlot = targetEl?.closest('.process-slot');
+            const tableGroup = targetEl?.closest('.table-group');
+            const tableField = targetEl?.closest('#series-field') || targetEl?.closest('#pairs-field');
+
             // Eğer tam üstünde değilse ama çok yakınsa (50px pay)
             if (!isInDiscard && rect) {
                 const margin = 50;
@@ -1922,6 +2174,14 @@ function handleTouchEnd(e) {
 
             if (slot) moveTileToSlot(gameState.touch.draggedTileId, parseInt(slot.dataset.index));
             else if (isInDiscard) processUserDiscard(gameState.touch.draggedTileId);
+            else if (processSlot || tableGroup) {
+                 let gIdx = targetEl?.closest('.table-group')?.dataset.index;
+                 let owner = targetEl?.closest('.table-group')?.dataset.owner;
+                 if (gIdx && owner) handleProcessTile(gameState.touch.draggedTileId, parseInt(gIdx), owner);
+            }
+            else if (tableField) {
+                 attemptOpenCluster(gameState.touch.draggedTileId);
+            }
 
             gameState.touch.draggedTileId = null;
         }
@@ -1995,18 +2255,6 @@ function findGroups(hand) {
 
     const runs = findCompleteRuns(result.leftovers);
     runs.forEach(g => { result.complete.push(g); g.forEach(t => removeTileFromList(result.leftovers, t)); });
-
-    // 3. ÇİFTLERİ AYIR (Aynı Sayı, Aynı Renk)
-    const identicals = {};
-    result.leftovers.forEach(t => { const k = `${t.number}_${t.color}`; if (!identicals[k]) identicals[k] = []; identicals[k].push(t); });
-    Object.keys(identicals).forEach(k => {
-        let list = identicals[k];
-        while (list.length >= 2) {
-            const pair = [list.pop(), list.pop()];
-            result.pairs.push(pair);
-            pair.forEach(t => removeTileFromList(result.leftovers, t));
-        }
-    });
 
     // 4. STRATEJİK OKEY KULLANIMI: TÜM ADAYLARI PUANA GÖRE SIRALA
     if (okeys.length > 0) {
@@ -2132,6 +2380,17 @@ function findGroups(hand) {
         }
     });
 
+    // 3. ÇİFTLERİ AYIR (Seri/Potansiyelleri bozmamak için en sona alındı)
+    const identicals = {};
+    result.leftovers.forEach(t => { const k = `${t.number}_${t.color}`; if (!identicals[k]) identicals[k] = []; identicals[k].push(t); });
+    Object.keys(identicals).forEach(k => {
+        let list = identicals[k];
+        while (list.length >= 2) {
+            const pair = [list.pop(), list.pop()];
+            result.pairs.push(pair);
+            pair.forEach(t => removeTileFromList(result.leftovers, t));
+        }
+    });
 
     // Kalan Okeyleri Başa Al
     okeys.forEach(o => result.leftovers.unshift(o));
@@ -2235,20 +2494,144 @@ function findCompleteRuns(list) {
     return runs;
 }
 
-function autoSortSeries() {
-    const userHand = gameState.players.user.hand.filter(t => t);
-    let { complete, pairs, potential, leftovers } = findGroups(userHand);
+function sortRunGroupInPlace(group) {
+    if (getRunPoints(group) === 0) return;
+    const nonWilds = group.filter(t => !isWildCard(t)).sort((a, b) => a.number - b.number);
+    let okeys = group.filter(t => isWildCard(t));
+    if (nonWilds.length === 0) return;
 
+    group.length = 0;
+    for (let i = 0; i < nonWilds.length; i++) {
+        group.push(nonWilds[i]);
+        if (i < nonWilds.length - 1) {
+            let gap = nonWilds[i + 1].number - nonWilds[i].number - 1;
+            while (gap > 0 && okeys.length > 0) {
+                group.push(okeys.pop());
+                gap--;
+            }
+        }
+    }
+    while (okeys.length > 0) {
+        if (nonWilds[nonWilds.length - 1].number + 1 <= 13 && group.length < 13) {
+            group.push(okeys.pop());
+            nonWilds.push({ number: nonWilds[nonWilds.length - 1].number + 1 });
+        } else {
+            group.unshift(okeys.pop());
+        }
+    }
+}
+
+function autoSortSeries() {
+    let userHand = gameState.players.user.hand.filter(t => t);
+    let okeys = userHand.filter(t => isWildCard(t));
+    let others = userHand.filter(t => !isWildCard(t));
+
+    // 1. TAM PERLER
+    const sets = findCompleteSets(others);
+    sets.forEach(g => { g.forEach(t => removeTileFromList(others, t)); });
+
+    const runs = findCompleteRuns(others);
+    runs.forEach(g => { g.forEach(t => removeTileFromList(others, t)); });
+
+    let completeGroups = [...sets, ...runs];
+
+    // 2. OKEYLERİ SETLERE (11, 11) YEDİRME (ÖNCELİK 1)
+    let setCandidates = [];
+    const groupedNums = groupTilesByNumber(others);
+    Object.keys(groupedNums).forEach(num => {
+        let u = []; let s = new Set();
+        groupedNums[num].forEach(t => { if (!s.has(t.color)) { u.push(t); s.add(t.color); } });
+        if (u.length === 2 && okeys.length > 0) {
+            setCandidates.push(u);
+        }
+    });
+    setCandidates.sort((a, b) => b[0].number - a[0].number);
+    setCandidates.forEach(u => {
+        if (okeys.length > 0) {
+            // Hala others içinde mi kontrol et
+            let hasBoth = others.find(x => x.id === u[0].id) && others.find(x => x.id === u[1].id);
+            if (hasBoth) {
+                u.forEach(t => removeTileFromList(others, t));
+                let okey = okeys.pop();
+                u.push(okey);
+                completeGroups.push(u);
+            }
+        }
+    });
+
+    // 3. OKEYLERİ SERİLERE (10-12 veya 10-11) YEDİRME (ÖNCELİK 2)
+    let runCandidates = [];
+    const groupedClrs = groupTilesByColor(others);
+    Object.keys(groupedClrs).forEach(clr => {
+        let l = groupedClrs[clr].sort((a,b) => a.number - b.number);
+        for (let i = 0; i < l.length - 1; i++) {
+            let diff = l[i+1].number - l[i].number;
+            if ((diff === 1 || diff === 2) && okeys.length > 0) {
+                runCandidates.push([l[i], l[i+1]]);
+            }
+        }
+    });
+    runCandidates.sort((a, b) => b[1].number - a[1].number);
+    runCandidates.forEach(u => {
+        if (okeys.length > 0) {
+            let hasBoth = others.find(x => x.id === u[0].id) && others.find(x => x.id === u[1].id);
+            if (hasBoth) {
+                u.forEach(t => removeTileFromList(others, t));
+                let okey = okeys.pop();
+                if (u[1].number - u[0].number === 2) {
+                    completeGroups.push([u[0], okey, u[1]]);
+                } else {
+                    completeGroups.push([u[0], u[1], okey]);
+                }
+            }
+        }
+    });
+
+    // 4. EKRANA YERLEŞTİRME
     gameState.userRackSlots.fill(null);
     let currentIdx = 0;
-    complete.forEach(group => { group.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
-    pairs.forEach(pair => { pair.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
-    potential.forEach(group => { group.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); currentIdx++; });
-    leftovers.sort((a, b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || a.number - b.number)
-        .forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; });
+
+    completeGroups.forEach(group => {
+        group.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; });
+        if (currentIdx % 20 !== 0) currentIdx++;
+    });
+
+    others.sort((a, b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || a.number - b.number);
+
+    let lastColor = null;
+    let lastNum = null;
+
+    for (let i = 0; i < others.length; i++) {
+        const t = others[i];
+        if (lastColor !== null) {
+            if (t.color !== lastColor) {
+                if (currentIdx % 20 !== 0) currentIdx++;
+            } else {
+                const diff = t.number - lastNum;
+                if (diff === 2 && currentIdx < 39) currentIdx++;
+                else if (diff === 3 && currentIdx < 38) currentIdx += 2;
+                else if (diff > 3 && currentIdx < 39) currentIdx++;
+            }
+        }
+        if (currentIdx >= 40) {
+            const emptyIdx = gameState.userRackSlots.indexOf(null);
+            if (emptyIdx !== -1) gameState.userRackSlots[emptyIdx] = t;
+        } else {
+            gameState.userRackSlots[currentIdx] = t;
+            currentIdx++;
+        }
+        lastColor = t.color;
+        lastNum = t.number;
+    }
+
+    // Elde seriye/sete girmemiş okey kaldıysa boş yerlere at
+    okeys.forEach(t => {
+        let emptyIdx = gameState.userRackSlots.lastIndexOf(null);
+        if (emptyIdx !== -1) gameState.userRackSlots[emptyIdx] = t;
+    });
 
     renderUserRack();
-    showGameMessage("Dizilim tamamlandı.");
+    showGameMessage("Seri dizildi. 🎯");
 }
 
 function autoSortPairs() {
@@ -2333,11 +2716,22 @@ function autoSortPairs() {
         });
 
     renderUserRack();
-    showGameMessage("Çift öncelikli dizilim tamamlandı! ⚡");
+    showGameMessage("Çiftler dizildi. ⚡");
 }
 
 // --- DOM LİSTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
+    ['series-field', 'pairs-field'].forEach(fId => {
+        const field = document.getElementById(fId);
+        if (field) {
+            field.ondragover = (e) => e.preventDefault();
+            field.ondrop = (e) => {
+                e.preventDefault();
+                const tileId = e.dataTransfer.getData('tileId');
+                if (tileId) attemptOpenCluster(tileId);
+            };
+        }
+    });
     // Yatay Ekran Kilidi (PWA + Tarayıcı uyumlu)
     const tryLockOrientation = () => {
         try {
@@ -2666,6 +3060,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     } catch(e) { console.warn("Hafıza okuma hatası", e); }
+
+    // -- PHANTOM CLEANUP LISTENERS --
+    document.addEventListener('touchend', (e) => {
+        document.body.classList.remove('dragging-mode');
+        if (gameState.touch && gameState.touch.phantom) {
+            gameState.touch.phantom.remove();
+            gameState.touch.phantom = null;
+            gameState.touch.draggedTileId = null;
+            gameState.touch.sourceType = null;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchcancel', (e) => {
+        document.body.classList.remove('dragging-mode');
+        if (gameState.touch && gameState.touch.phantom) {
+            gameState.touch.phantom.remove();
+            gameState.touch.phantom = null;
+            gameState.touch.draggedTileId = null;
+            gameState.touch.sourceType = null;
+        }
+    }, { passive: true });
 
     // Başlangıç
     initGame();

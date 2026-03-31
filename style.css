@@ -1072,7 +1072,7 @@ body.dragging-mode .pair-group::after {
 }
 
 /* Helpers Toggle applied from JS */
-.helpers-hidden .action-rect,
+.helpers-hidden button.action-rect,
 .helpers-hidden .action-divider {
     display: none !important;
 }
