@@ -37,7 +37,8 @@ let gameState = {
     },
     settings: {
         sound: true
-    }
+    },
+    stoleDiscard: false // NEW: Yandan taş alma takibi
 };
 
 // --- SES MOTORU (AudioContext Synthetic) ---
@@ -834,6 +835,15 @@ function finishRound(winnerId = null, lastDiscardedTile = null) {
             }
         }
 
+        // KURAL: Elini açmış ama elinde Okey kalmış oyuncuya +101 ceza
+        if (pId !== winnerId && player.hasOpened) {
+            const hasOkeyInHand = (pId === 'user' ? gameState.userRackSlots : player.hand).some(t => isWildCard(t));
+            if (hasOkeyInHand) {
+                penalty += 101;
+                logDebug(`${player.name} elinde Okey ile yakalandı! +101`);
+            }
+        }
+
         player.score += penalty + (gameState.roundPenalties[pId] || 0);
         gameState.roundScores[pId].push(penalty + (gameState.roundPenalties[pId] || 0));
     }
@@ -942,6 +952,7 @@ function startNewHand() {
     gameState.roundScores = savedRoundScores;
     gameState.startingPlayerIdx = savedStartingIdx; // NEW
     gameState.roundPenalties = { user: 0, bot1: 0, bot2: 0, bot3: 0 };
+    gameState.stoleDiscard = false;
 
     for (let p in gameState.players) {
         gameState.players[p].name = savedNames[p];
@@ -1100,6 +1111,23 @@ function processUserDiscard(tileId) {
     // ISTAKAYI ANINDA GÜNCELLE (En kritik düzeltme)
     renderAll(); 
 
+    // --- ÖZEL KURAL: YANDAN TAŞ ALDIYSA AÇMAK ZORUNDA ---
+    if (gameState.stoleDiscard && !gameState.players.user.hasOpened) {
+        showGameMessage("Yandan taş aldığınız için elinizi açmak zorundasınız!", "error");
+        // Yanlış hamleyi geri al (Opsiyonel: Ceza da kesilebilir)
+        // Şimdilik atmasına engel olalım
+        gameState.players.user.hand.push(tile);
+        if (rackIdx !== -1) gameState.userRackSlots[rackIdx] = tile;
+        renderAll();
+        return;
+    }
+
+    // --- KURAL: OKEY ATMA CEZASI ---
+    if (isWildCard(tile)) {
+        gameState.roundPenalties.user += 101;
+        showGameMessage("OKEY ATTIN! +101 Ceza! 🔴", "error");
+    }
+
     if (gameState.players.user.hand.length === 0) {
         finishRound('user', tile);
         return;
@@ -1118,6 +1146,7 @@ function nextTurn() {
 
     gameState.currentTurnIndex = (gameState.currentTurnIndex + 1) % 4;
     gameState.hasDrawn = false;
+    gameState.stoleDiscard = false; // Her tur başında sıfırla
     updateTurnUI();
     renderAllDiscardZones(); // Çalınabilir taş durumunu güncelle
 
@@ -1154,12 +1183,11 @@ async function botPlay() {
     // 2. Eli Değerlendir
     let { complete, pairs, potential, leftovers } = findGroups(bot.hand);
 
-
     // 3. El Açma Mantığı
-    if (!bot.hasOpened) {
-        let totalPts = complete.reduce((sum, g) => sum + evaluateCluster(g).points, 0);
-        let totalPairs = pairs.length;
+    let totalPts = complete.reduce((sum, g) => sum + evaluateCluster(g).points, 0);
+    let totalPairs = pairs.length;
 
+    if (!bot.hasOpened) {
         if (totalPts >= 101 && bot.openedType !== 'pairs') {
             // Seri Aç (Animasyonlu)
             for (const group of complete) {
@@ -1230,6 +1258,9 @@ async function botPlay() {
         // Önce işlek olmayan (masaya girmeyen) taşları bulalım
         const findGoodDiscard = () => {
              const allNonIshlek = bot.hand.filter(t => {
+                 // KURAL: Botlar asla Okey'i yere atmaz
+                 if (isWildCard(t)) return false;
+
                  let isIshlek = false;
                  const owners = ['user', 'bot1', 'bot2', 'bot3'];
                  owners.forEach(ow => {
@@ -1267,9 +1298,15 @@ async function botPlay() {
         tileToDiscard = findGoodDiscard();
 
         if (!tileToDiscard) {
-            // Hepsi işlek ise, mecburen en büyük olanı at ve ceza ye
-            tileToDiscard = bot.hand.sort((a,b) => b.number - a.number)[0];
-            isIshlekDiscard = true;
+            // Hepsi işlek ise, Okey olmayan en büyük olanı at ve ceza ye
+            const possibleDiscards = bot.hand.filter(t => !isWildCard(t));
+            if (possibleDiscards.length > 0) {
+                tileToDiscard = possibleDiscards.sort((a,b) => b.number - a.number)[0];
+                isIshlekDiscard = true;
+            } else {
+                // Sadece Okey kalmışsa (asla olmaz ama crash önleyici), mecbur atacak
+                tileToDiscard = bot.hand[0];
+            }
         }
 
         if (isIshlekDiscard) {
@@ -1547,6 +1584,7 @@ function handleProcessTile(tileId, groupIdx, owner) {
         if (isNowRun) group.sort((a, b) => a.number - b.number);
         
         gameState.userRackSlots[rackIdx] = null;
+        gameState.players.user.hand = gameState.players.user.hand.filter(t => t.id !== tileId);
         renderAll();
         showGameMessage("Taş başarıyla işlendi! 🔥");
     } else {
@@ -1763,8 +1801,9 @@ function attemptStealDiscard() {
 
     gameState.lastDiscard = null;
     gameState.hasDrawn = true; // Çekme hakkını kullandı ("steal" de bir çekimdir)
+    gameState.stoleDiscard = true; // NEW: Yandan çalma kuralı aktif
     renderAll();
-    showGameMessage(`${tile.number} numaralı taş çalındı! 🔥`);
+    showGameMessage(`${tile.number} numaralı taş çalındı! Açmak zorundasınız. 🔥`);
 }
 
 function toggleTileSelection(tileId) {
@@ -2041,34 +2080,54 @@ function findGroups(hand) {
     Object.keys(runPotentials).forEach(clr => {
         let list = runPotentials[clr].sort((a,b) => a.number - b.number);
         for(let i=0; i < list.length-1; i++) {
-            const diff = list[i+1].number - list[i].number;
+            const t1 = list[i];
+            const t2 = list[i+1];
+            
+            // CRITICAL: Ensure both tiles are still available in leftovers
+            const inLeftovers = result.leftovers.find(it => it.id === t1.id) && 
+                              result.leftovers.find(it => it.id === t2.id);
+            if (!inLeftovers) continue;
+
+            const diff = t2.number - t1.number;
             if (diff === 1 || diff === 2) {
                 // Beklenen taş ölü mü?
-                const missingNum = (diff === 2) ? list[i].number + 1 : (list[i+1].number < 13 ? list[i+1].number + 1 : list[i].number - 1);
+                const missingNum = (diff === 2) ? t1.number + 1 : (t2.number < 13 ? t2.number + 1 : t1.number - 1);
                 const deadCount = Object.values(gameState.discards).flat().filter(d => d.number === missingNum && d.color === clr).length;
                 if (deadCount < 2) {
-                    result.potential.push([list[i], list[i+1]]);
-                    removeTileFromList(result.leftovers, list[i]);
-                    removeTileFromList(result.leftovers, list[i+1]);
+                    result.potential.push([t1, t2]);
+                    removeTileFromList(result.leftovers, t1);
+                    removeTileFromList(result.leftovers, t2);
+                    i++; // Skip next to avoid overlap duplication
                 }
             }
         }
     });
 
-    // Sets (Örn: Mavi 5, Siyah 5 bekliyor 5)
     const setPotentials = groupTilesByNumber(result.leftovers);
     Object.keys(setPotentials).forEach(num => {
         let list = setPotentials[num];
-        if (list.length === 2 && list[0].color !== list[1].color) {
-            // Eksik renklerin hepsi çıkmış mı?
-            const COLORS = ['mavi', 'kirmizi', 'siyah', 'sari'];
-            const missingColors = COLORS.filter(c => c !== list[0].color && c !== list[1].color);
-            const allMissingDead = missingColors.every(c => {
-                return Object.values(gameState.discards).flat().filter(d => d.number === parseInt(num) && d.color === c).length >= 2;
-            });
-            if (!allMissingDead) {
-                result.potential.push(list);
-                list.forEach(t => removeTileFromList(result.leftovers, t));
+        for(let i=0; i < list.length-1; i++) {
+            const t1 = list[i];
+            const t2 = list[i+1];
+
+            // CRITICAL: Ensure both tiles are still available in leftovers
+            const inLeftovers = result.leftovers.find(it => it.id === t1.id) && 
+                              result.leftovers.find(it => it.id === t2.id);
+            if (!inLeftovers) continue;
+
+            if (t1.color !== t2.color) {
+                // Eksik renklerin hepsi çıkmış mı?
+                const COLORS = ['mavi', 'kirmizi', 'siyah', 'sari'];
+                const missingColors = COLORS.filter(c => c !== t1.color && c !== t2.color);
+                const allMissingDead = missingColors.every(c => {
+                    return Object.values(gameState.discards).flat().filter(d => d.number === parseInt(num) && d.color === c).length >= 2;
+                });
+                if (!allMissingDead) {
+                    result.potential.push([t1, t2]);
+                    removeTileFromList(result.leftovers, t1);
+                    removeTileFromList(result.leftovers, t2);
+                    i++; // Skip next to avoid overlap duplication
+                }
             }
         }
     });
@@ -2231,7 +2290,7 @@ function autoSortPairs() {
     }
 
     // 4. Perleri de dizmek için findGroups kullan (Eğer çiftlerden kalanlarla seri oluyorsa)
-    let { complete, potential, leftovers: finalLeftovers } = findGroups(hand);
+    let { complete, pairs: extraPairs, potential, leftovers: finalLeftovers } = findGroups(hand);
     
     gameState.userRackSlots.fill(null);
     let currentIdx = 0;
@@ -2249,6 +2308,15 @@ function autoSortPairs() {
     complete.forEach(g => { 
         g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); 
         currentIdx++; 
+    });
+
+    // Varsa ekstra çiftleri diz
+    extraPairs.forEach(p => {
+        if (currentIdx < 39) {
+            gameState.userRackSlots[currentIdx++] = p[0];
+            gameState.userRackSlots[currentIdx++] = p[1];
+            currentIdx++;
+        }
     });
 
     // Varsa potansiyelleri diz
