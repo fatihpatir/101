@@ -2143,7 +2143,7 @@ function handleTouchEnd(e) {
                 if (gameState.touch.sourceType === 'deck') handleDraw(parseInt(slot.dataset.index));
                 else attemptStealDiscard(); // Soldaki kuleden çaldı
             }
-            else if (targetEl?.closest('.rack-row')) {
+            else if (targetEl?.closest('.rack-row') || targetEl?.closest('.user-rack-container') || targetEl?.closest('.rack-wrapper')) {
                 if (gameState.touch.sourceType === 'deck') handleDraw(-1);
                 else attemptStealDiscard();
             }
@@ -3075,28 +3075,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) { console.warn("Hafıza okuma hatası", e); }
 
     // -- PHANTOM CLEANUP LISTENERS --
-    document.addEventListener('touchend', (e) => {
-        document.body.classList.remove('dragging-mode');
-        if (gameState.touch && gameState.touch.phantom) {
-            gameState.touch.phantom.remove();
-            gameState.touch.phantom = null;
-            gameState.touch.draggedTileId = null;
-            gameState.touch.sourceType = null;
-        }
-    }, { passive: true });
-
-    document.addEventListener('touchcancel', (e) => {
-        document.body.classList.remove('dragging-mode');
-        if (gameState.touch && gameState.touch.phantom) {
-            gameState.touch.phantom.remove();
-            gameState.touch.phantom = null;
-            gameState.touch.draggedTileId = null;
-            gameState.touch.sourceType = null;
-        }
-    }, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    document.addEventListener('touchcancel', handleTouchEnd, { passive: true });
 
     // Başlangıç
     initGame();
 });
+
 
 
