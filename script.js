@@ -1835,10 +1835,7 @@ function handleProcessTile(tileId, groupIdx, owner) {
 
     if (isNowRun || isNowSet) {
         group.push(tile);
-        if (isNowRun) {
-            group.sort((a, b) => a.number - b.number);
-            sortRunGroupInPlace(group);
-        }
+        if (isNowRun) sortRunGroupInPlace(group);
         
         gameState.userRackSlots[rackIdx] = null;
         gameState.players.user.hand = gameState.players.user.hand.filter(t => t.id !== tileId);
@@ -1851,18 +1848,14 @@ function handleProcessTile(tileId, groupIdx, owner) {
 
 function renderDiscard(playerId, tile) {
     if (!gameState.discards[playerId]) gameState.discards[playerId] = [];
-    tile.isFlipped = false; // Taşı ön yüze çevir
+    tile.isFlipped = false;
     gameState.discards[playerId].push(tile);
-
-    // Her atılan taş çalınabilir adaydır (sıradaki oyuncu için)
     gameState.lastDiscard = { tile, playerId };
-
     renderDiscardZone(playerId);
 }
 
 function renderAllDiscardZones() {
-    const players = ['user', 'bot1', 'bot2', 'bot3'];
-    players.forEach(pId => renderDiscardZone(pId));
+    ['user', 'bot1', 'bot2', 'bot3'].forEach(pId => renderDiscardZone(pId));
 }
 
 function renderDiscardZone(playerId) {
@@ -1870,7 +1863,6 @@ function renderDiscardZone(playerId) {
     const zone = document.getElementById(`discard-${htmlId}`);
     if (!zone) return;
 
-    // Sadece fark edildiğinde temizleyip yeniden çiz (Daha stabil)
     zone.innerHTML = '';
     const all = gameState.discards[playerId] || [];
     if (all.length === 0) return;
@@ -1878,7 +1870,7 @@ function renderDiscardZone(playerId) {
     all.forEach((tile, index) => {
         const tileEl = tile.createHTMLElement(true);
         tileEl.style.position = 'absolute';
-        tileEl.style.zIndex = index + 10; // Her zaman üstte kalsın
+        tileEl.style.zIndex = index + 10;
         
         const visualIndex = Math.min(index, 10);
         const isPeeking = zone.classList.contains('peeking');
@@ -1887,120 +1879,67 @@ function renderDiscardZone(playerId) {
             tileEl.style.top = `${visualIndex * 1.5}px`; 
             tileEl.style.left = `${visualIndex * 0.8}px`;
             tileEl.style.transform = 'scale(0.9)';
-            tileEl.style.position = 'absolute';
         } else {
-            // --- PEKİŞTİRİLMİŞ YÖN MANTIĞI ---
-            tileEl.style.position = 'absolute';
             tileEl.style.left = '0px';
             tileEl.style.transform = 'scale(1.2)';
-            tileEl.style.zIndex = index + 10000;
-
             const isBottomPlayer = (playerId === 'user' || playerId === 'bot1');
-            const offset = 55; // Kullanıcının beğendiği o net boşluk
-            
-            // Çalınabilir taş: yığının en üstündeki taş, sıra bizde ve henüz çekmedik
-            const isLastInThisZone = index === all.length - 1;
-            const isMostRecentDiscard = gameState.lastDiscard && gameState.lastDiscard.tile.id === tile.id;
-            const isUserTurn = gameState.turnOrder[gameState.currentTurnIndex] === 'user';
-            const previousPlayerId = gameState.turnOrder[(gameState.currentTurnIndex + 3) % 4];
-            const isStealableCandidate = isLastInThisZone && isMostRecentDiscard && (playerId === previousPlayerId) && isUserTurn && !gameState.hasDrawn;
-
-            if (isStealableCandidate) {
-                // Taşı çalma vurgusu (Kullanıcı isteğiyle kaldırıldı, sadece tıklama aktif)
-                tileEl.style.cursor = 'pointer';
-                tileEl.onclick = (e) => {
-                    e.stopPropagation();
-                    attemptStealDiscard();
-                };
-            } else {
-                tileEl.onclick = (e) => {
-                    // Peek moduna geçişi ZONE düzeyinde kalsın ama her taşa tıklayınca tetiklensin
-                    // Fakat stealable olmayan taşlara tıkla-al yapılmasın
-                    e.stopPropagation();
-                    zone.click(); 
-                };
-            }
-            
-            if (isBottomPlayer) {
-                // Senin (Sağ/Sol) taşların kesinlikle YUKARI açılır
-                tileEl.style.top = `${-index * offset}px`; 
-            } else {
-                // Diğerlerinin (Üst) taşları AŞAĞI dökülür
-                tileEl.style.top = `${index * offset}px`; 
-            }
+            const offset = 55;
+            tileEl.style.top = isBottomPlayer ? `${-index * offset}px` : `${index * offset}px`;
         }
 
-
-
-
-
-
-
-
-        // Çalınabilir taş: yığının en üstündeki taş, sıra bizde ve henüz çekmedik
+        // Çalınabilir taş kontrolü
         const isLastInThisZone = index === all.length - 1;
         const isMostRecentDiscard = gameState.lastDiscard && gameState.lastDiscard.tile.id === tile.id;
-        const isCurrentPlayerUser = gameState.turnOrder[gameState.currentTurnIndex] === 'user';
+        const previousPlayerId = gameState.turnOrder[(gameState.currentTurnIndex + 3) % 4];
+        const isStealable = isLastInThisZone && isMostRecentDiscard && (playerId === previousPlayerId) && (gameState.turnOrder[gameState.currentTurnIndex] === 'user') && !gameState.hasDrawn;
 
-        if (isLastInThisZone && isMostRecentDiscard && isCurrentPlayerUser && !gameState.hasDrawn) {
+        if (isStealable) {
             tileEl.classList.add('stealable-tile');
-            tileEl.title = 'Taşı çalmak için sürükle veya dokun!';
             tileEl.style.cursor = 'grab';
-            
-            // --- SÜRÜKLE BIRAK (PC) ---
-            tileEl.setAttribute('draggable', 'true');
-            tileEl.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('tileId', tile.id);
-                e.dataTransfer.setData('source', 'discard');
-                e.dataTransfer.setData('text/plain', 'discard');
-                tileEl.classList.add('dragging');
-            });
 
-            // --- SÜRÜKLE BIRAK (MOBİL / PHANTOM) ---
-            tileEl.addEventListener('touchstart', (e) => {
-                // Eğer peeking (basılı tutma) timer'ı varsa iptal et ki sürükleme başlasın
+            const onStealStart = (e) => {
+                if (zone.classList.contains('peeking')) return;
                 clearTimeout(peekTimer);
-                gameState.touch.draggedTileId = tile.id;
                 gameState.touch.sourceType = 'steal';
                 createPhantom(tileEl);
-                document.body.classList.add('dragging-mode');
-            }, { passive: true });
-
-            const handleSteal = (e) => {
-                if (zone.classList.contains('peeking')) return;
-                e.preventDefault();
+            };
+            tileEl.addEventListener('touchstart', onStealStart, { passive: true });
+            
+            tileEl.onclick = (e) => {
                 e.stopPropagation();
                 attemptStealDiscard();
             };
-            tileEl.onclick = handleSteal;
+        } else {
+            tileEl.onclick = (e) => {
+                e.stopPropagation();
+                if (!zone.classList.contains('peeking')) startPeek();
+                else endPeek();
+            };
         }
 
         zone.appendChild(tileEl);
     });
 
-    // --- BASILI TUT VE GÖR (Hold-to-Peek) MANTIĞI ---
     let peekTimer;
     const startPeek = () => {
+        if (zone.classList.contains('peeking')) return;
         peekTimer = setTimeout(() => {
             zone.classList.add('peeking');
-            renderDiscardZone(playerId); // Taşları yayarak tekrar çiz
-        }, 300); // 300ms basılı tutunca açılsın
+            renderDiscardZone(playerId);
+        }, 300);
     };
     const endPeek = () => {
         clearTimeout(peekTimer);
         if (zone.classList.contains('peeking')) {
             zone.classList.remove('peeking');
-            renderDiscardZone(playerId); // Eski haline döndür
+            renderDiscardZone(playerId);
         }
     };
 
     zone.onmousedown = startPeek;
     zone.onmouseup = endPeek;
     zone.onmouseleave = endPeek;
-    zone.addEventListener('touchstart', (e) => { 
-        // preventDefault YAPMIYORUZ ki altındaki taşların dokunma olayları çalışsın
-        startPeek(); 
-    }, { passive: true });
+    zone.addEventListener('touchstart', (e) => { startPeek(); }, { passive: true });
     zone.addEventListener('touchend', endPeek);
     zone.addEventListener('touchcancel', endPeek);
 }
@@ -2008,7 +1947,7 @@ function renderDiscardZone(playerId) {
 
 
 
-function attemptStealDiscard() {
+function attemptStealDiscard(targetSlotIdx = -1) {
     if (!gameState.lastDiscard) return;
     if (gameState.hasDrawn) { showGameMessage("Zaten taş çektin!"); return; }
     if (gameState.turnOrder[gameState.currentTurnIndex] !== 'user') return;
@@ -2020,20 +1959,16 @@ function attemptStealDiscard() {
     let allowedToSteal = false;
 
     if (hasOpened) {
-        // Eğer zaten açmışsa, işine yarasın yaramasın (ceza yeme pahasina) taşı alabilir. 
-        // 101 Okey doğasına uygun olarak "elini açmış oyuncu taş çalabilir" kuralı işletilir.
         allowedToSteal = true;
     } else {
         const hypotheticalHand = [...gameState.players.user.hand, tile];
         const hypotheticalGroups = findGroups(hypotheticalHand);
 
-        // Seri Puanı Hesapla
         let totalPts = 0;
         [...hypotheticalGroups.complete].forEach(g => {
             totalPts += evaluateCluster(g).points;
         });
 
-        // Çift Sayısı Hesapla (Özel Fonksiyonla)
         const totalPairs = countPossiblePairs(hypotheticalHand);
         const canOpenWith101 = totalPts >= 101;
         const canOpenWith5Pairs = totalPairs >= 5;
@@ -2047,18 +1982,23 @@ function attemptStealDiscard() {
         }
     }
 
-    // Çal! - Discard yığından çıkar, elime ekle
+    // Yerleşim Kararı
+    let finalIdx = targetSlotIdx;
+    if (finalIdx === -1 || finalIdx >= 40 || gameState.userRackSlots[finalIdx] !== null) {
+        finalIdx = gameState.userRackSlots.indexOf(null);
+    }
+
+    // Çal!
     const discardArr = gameState.discards[playerId];
     const idx = discardArr.findIndex(t => t.id === tile.id);
     if (idx !== -1) discardArr.splice(idx, 1);
 
     gameState.players.user.hand.push(tile);
-    const emptySlot = gameState.userRackSlots.indexOf(null);
-    if (emptySlot !== -1) gameState.userRackSlots[emptySlot] = tile;
+    if (finalIdx !== -1) gameState.userRackSlots[finalIdx] = tile;
 
     gameState.lastDiscard = null;
-    gameState.hasDrawn = true; // Çekme hakkını kullandı ("steal" de bir çekimdir)
-    gameState.stoleDiscard = true; // NEW: Yandan çalma kuralı aktif
+    gameState.hasDrawn = true;
+    gameState.stoleDiscard = true;
     renderAll();
     showGameMessage(`${tile.number} numaralı taş çalındı! Açmak zorundasınız. 🔥`);
 }
@@ -2115,7 +2055,7 @@ function handleDropOnSlot(e) {
     if (source === 'deck') {
         handleDraw(targetIdx);
     } else if (source === 'discard') {
-        attemptStealDiscard();
+        attemptStealDiscard(targetIdx);
     } else {
         const tileId = e.dataTransfer.getData('tileId');
         if (tileId) moveTileToSlot(tileId, targetIdx);
@@ -2137,59 +2077,75 @@ function handleTouchStartSlot(e) {
 
 function handleTouchEnd(e) {
     document.body.classList.remove('dragging-mode');
+    
     if (gameState.touch.phantom) {
-        gameState.touch.phantom.remove();
+        const phantom = gameState.touch.phantom;
+        const sType = gameState.touch.sourceType;
+        const dId = gameState.touch.draggedTileId;
+
+        // --- GÜVENLİ TEMİZLİK (Her durumda phantom silinmeli) ---
+        phantom.remove();
         gameState.touch.phantom = null;
 
         const touch = e.changedTouches[0];
         const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
 
         // Desteden veya Yandan (Steal) çekme kontrolü
-        if (gameState.touch.sourceType === 'deck' || gameState.touch.sourceType === 'steal') {
+        if (sType === 'deck' || sType === 'steal') {
+            let targetIdx = -1;
             const slot = targetEl?.closest('.tile-slot');
+            
             if (slot) {
-                if (gameState.touch.sourceType === 'deck') handleDraw(parseInt(slot.dataset.index));
-                else attemptStealDiscard(); // Soldaki kuleden çaldı
+                targetIdx = parseInt(slot.dataset.index);
+            } else {
+                // Eğer doğrudan slot üstünde değilse ama rack üzerindeyse, en yakın slotu bul
+                const rack = targetEl?.closest('.rack-wrapper') || targetEl?.closest('.user-rack-container');
+                if (rack) {
+                    // O andaki tüm slotları tara, dokunma noktasına en yakın olanı bul
+                    const slots = document.querySelectorAll('.tile-slot');
+                    let minD = 9999;
+                    slots.forEach(s => {
+                        const r = s.getBoundingClientRect();
+                        const dx = (r.left + r.width/2) - touch.clientX;
+                        const dy = (r.top + r.height/2) - touch.clientY;
+                        const d = Math.sqrt(dx*dx + dy*dy);
+                        if (d < minD && d < 100) { // 100px yakınlık sınırı
+                            minD = d;
+                            targetIdx = parseInt(s.dataset.index);
+                        }
+                    });
+                }
             }
-            else if (targetEl?.closest('.rack-row') || targetEl?.closest('.user-rack-container') || targetEl?.closest('.rack-wrapper')) {
-                if (gameState.touch.sourceType === 'deck') handleDraw(-1);
-                else attemptStealDiscard();
-            }
+            
+            if (sType === 'deck') handleDraw(targetIdx);
+            else attemptStealDiscard(targetIdx);
+
             gameState.touch.sourceType = null;
             return;
         }
 
         // Isktan içi veya Atma kontrolü
-        if (gameState.touch.draggedTileId) {
+        if (dId) {
             const slot = targetEl?.closest('.tile-slot');
-
-            // Atma alanı kontrolü (Hit area'yı kodla genişletiyoruz)
-            const discard = targetEl?.closest('#discard-user');
             const rect = document.getElementById('discard-user')?.getBoundingClientRect();
-            let isInDiscard = !!discard;
+            let isInDiscard = !!targetEl?.closest('#discard-user');
 
-            const processSlot = targetEl?.closest('.process-slot');
-            const tableGroup = targetEl?.closest('.table-group');
-            const tableField = targetEl?.closest('#series-field') || targetEl?.closest('#pairs-field');
-
-            // Eğer tam üstünde değilse ama çok yakınsa (50px pay)
             if (!isInDiscard && rect) {
-                const margin = 50;
+                const margin = 60; // Biraz daha genişletilmiş tolerans
                 if (touch.clientX >= rect.left - margin && touch.clientX <= rect.right + margin &&
                     touch.clientY >= rect.top - margin && touch.clientY <= rect.bottom + margin) {
                     isInDiscard = true;
                 }
             }
 
-            if (slot) moveTileToSlot(gameState.touch.draggedTileId, parseInt(slot.dataset.index));
-            else if (isInDiscard) processUserDiscard(gameState.touch.draggedTileId);
-            else if (processSlot || tableGroup) {
-                 let gIdx = targetEl?.closest('.table-group')?.dataset.index;
-                 let owner = targetEl?.closest('.table-group')?.dataset.owner;
-                 if (gIdx && owner) handleProcessTile(gameState.touch.draggedTileId, parseInt(gIdx), owner);
+            if (slot) moveTileToSlot(dId, parseInt(slot.dataset.index));
+            else if (isInDiscard) processUserDiscard(dId);
+            else if (targetEl?.closest('.table-group') || targetEl?.closest('.process-slot')) {
+                 let groupEl = targetEl.closest('.table-group');
+                 if (groupEl) handleProcessTile(dId, parseInt(groupEl.dataset.index), groupEl.dataset.owner);
             }
-            else if (tableField) {
-                 attemptOpenCluster(gameState.touch.draggedTileId);
+            else if (targetEl?.closest('#series-field') || targetEl?.closest('#pairs-field')) {
+                 attemptOpenCluster(dId);
             }
 
             gameState.touch.draggedTileId = null;

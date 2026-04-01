@@ -110,7 +110,7 @@
             background: linear-gradient(to bottom, #5d4037, #3e2723) !important;
             border-bottom: 8px solid #211510 !important;
             border-radius: 8px 8px 15px 15px !important;
-            box-shadow: 0 0 0 2px #fbc02d, 0 20px 40px rgba(0,0,0,0.7) !important;
+            box-shadow: 0 0 0 1.5px rgba(251, 192, 45, 0.4), 0 20px 40px rgba(0,0,0,0.7) !important;
             position: relative !important;
             width: 96% !important;
             max-width: 520px !important;
@@ -118,6 +118,18 @@
             min-height: 90px !important;
             display: flex !important;
             flex-direction: column !important;
+        }
+
+        /* YUMUŞAK SIRA IŞILTISI (DESTE İÇİN) */
+        @keyframes subtlePulse {
+            0% { box-shadow: 0 0 5px rgba(251, 192, 45, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(251, 192, 45, 0.6); }
+            100% { box-shadow: 0 0 5px rgba(251, 192, 45, 0.3); }
+        }
+
+        .your-turn-pulse {
+            animation: subtlePulse 2s infinite ease-in-out !important;
+            border-radius: 8px !important;
         }
 
         /* MOBİL ÖZEL HİZA VE ÖLÇÜLER (FORCE TOP ALIGN) */
