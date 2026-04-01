@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 101 Okey Premium - JavaScript Motoru v4.0 (Temiz Mimari)
  */
 
@@ -661,7 +661,7 @@ function getOkeySubstitutes(group) {
 }
 
 function isValidAddition(tile, group) {
-    if (!group || group.length === 0) return false;
+    if (!group || group.length < 3) return false;
     
     // 1. SET KONTROLÜ (Aynı sayılar, farklı renkler)
     const setPoints = getSetPoints(group);
@@ -1944,6 +1944,7 @@ function renderDiscardZone(playerId) {
             tileEl.addEventListener('dragstart', (e) => {
                 e.dataTransfer.setData('tileId', tile.id);
                 e.dataTransfer.setData('source', 'discard');
+                e.dataTransfer.setData('text/plain', 'discard');
                 tileEl.classList.add('dragging');
             });
 
@@ -2102,7 +2103,7 @@ function handleDropOnSlot(e) {
     this.classList.remove('drag-hover');
     const targetIdx = parseInt(this.dataset.index);
 
-    const source = e.dataTransfer.getData('source');
+    const source = e.dataTransfer.getData('source') || e.dataTransfer.getData('text/plain');
     if (source === 'deck') {
         handleDraw(targetIdx);
     } else if (source === 'discard') {
@@ -2721,6 +2722,17 @@ function autoSortPairs() {
 
 // --- DOM LİSTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
+    const playerUserWrapper = document.querySelector('.rack-wrapper');
+    if (playerUserWrapper) {
+        playerUserWrapper.addEventListener('dragover', (e) => e.preventDefault());
+        playerUserWrapper.addEventListener('drop', (e) => {
+            if (e.target.closest('.tile-slot')) return;
+            e.preventDefault();
+            const src = e.dataTransfer.getData('source') || e.dataTransfer.getData('text/plain');
+            if (src === 'deck') handleDraw(-1);
+            else if (src === 'discard') attemptStealDiscard();
+        });
+    }
     ['series-field', 'pairs-field'].forEach(fId => {
         const field = document.getElementById(fId);
         if (field) {
@@ -2888,7 +2900,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 return;
             }
-            e.dataTransfer.setData('source', 'deck'); 
+            e.dataTransfer.setData('source', 'deck');
+            e.dataTransfer.setData('text/plain', 'deck'); 
         });
 
         // Mobil'de dokunup bırakınca taş çek (phantom oluşturmadan basit tap)
@@ -3085,3 +3098,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Başlangıç
     initGame();
 });
+
+
