@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 101 Okey Premium - JavaScript Motoru v4.0 (Temiz Mimari)
  */
 
@@ -753,41 +753,50 @@ function getSetPoints(tiles) {
 function getRunPoints(tiles) {
     if (!tiles || tiles.length < 3) return 0;
     const nonWilds = tiles.filter(t => !isWildCard(t)).sort((a, b) => a.number - b.number);
-    if (nonWilds.length === 0) {
-        // Hepsi okeyse, teorik olarak bir sayı seçelim (okey 101'de okeyin yerini alan sayıya göredir)
-        return (gameState.okeyTile ? gameState.okeyTile.number : 10) * tiles.length;
-    }
+    if (nonWilds.length === 0) return 0;
 
     const baseColor = nonWilds[0].color;
     let okeyCount = tiles.length - nonWilds.length;
 
-    // 1. Renk ve Ardışıklık Kontrolü
-    for (let i = 0; i < nonWilds.length - 1; i++) {
-        if (nonWilds[i].color !== baseColor) return 0;
-        const gap = nonWilds[i+1].number - nonWilds[i].number - 1;
-        if (gap < 0) return 0;
-        okeyCount -= gap;
-    }
-    if (okeyCount < 0) return 0;
-
-    // 2. Puanlama (Hipotetik tam seriyi oluşturup puanla)
-    const fullRangeLen = nonWilds[nonWilds.length-1].number - nonWilds[0].number + 1;
-    const missingCount = fullRangeLen - nonWilds.length;
-    const leftoverOkeys = okeyCount - missingCount;
-
-    let runSum = 0;
-    for(let n = nonWilds[0].number; n <= nonWilds[nonWilds.length-1].number; n++) runSum += n;
+    // 1. Renk ve Ardışıklık Kontrolü (Hipotetik Tam Liste Oluşturarak Test Et)
+    // Runs in 101 Okey: Same color, sequential. Gap can be filled with Okey.
+    // 13-1-2 is typically NOT allowed in 101 Okey rules (unlike standard Okey).
     
-    // Kalan okeyleri stratejik olarak (mümkünse) sona ekleyelim (puan artsın diye)
-    let extra = 0;
-    let top = nonWilds[nonWilds.length-1].number;
-    let bottom = nonWilds[0].number;
-    for(let k=0; k < leftoverOkeys; k++) {
-        if (top < 13) { top++; extra += top; }
-        else if (bottom > 1) { bottom--; extra += bottom; }
+    // Sort logic for verification:
+    // If we have an okey, it can be anywhere. Let's find the required length.
+    const minNum = nonWilds[0].number;
+    const maxNum = nonWilds[nonWilds.length - 1].number;
+    const span = maxNum - minNum + 1;
+    const missingInSpan = span - nonWilds.length;
+    
+    if (missingInSpan > okeyCount) return 0; // Okeyler aradaki boşlukları doldurmaya yetmiyor
+    
+    // Renk kontrolü
+    if (nonWilds.some(t => t.color !== baseColor)) return 0;
+    
+    // Duplicate kontrolü (Aynı sayıdan iki tane seride olamaz)
+    const numsSet = new Set(nonWilds.map(t => t.number));
+    if (numsSet.size !== nonWilds.length) return 0;
+
+    let remainingOkeys = okeyCount - missingInSpan;
+    
+    // Puanlama: Aradaki boşlukların değeri + mevcudun değeri
+    let sum = nonWilds.reduce((s, t) => s + t.number, 0);
+    // Aradaki boşlukları puanla
+    for(let n = minNum + 1; n < maxNum; n++) {
+        if (!numsSet.has(n)) sum += n;
     }
 
-    return runSum + extra;
+    // Kalan okeyleri puanı maksimize edecek şekilde uçlara ekle
+    let top = maxNum;
+    let bottom = minNum;
+    for (let k = 0; k < remainingOkeys; k++) {
+        if (top < 13) { top++; sum += top; }
+        else if (bottom > 1) { bottom--; sum += bottom; }
+        else break; // Teorik olarak 1-13 arası dolduysa biter
+    }
+    
+    return sum;
 }
 
 
@@ -1852,9 +1861,8 @@ function renderDiscard(playerId, tile) {
 }
 
 function renderAllDiscardZones() {
-    for (const playerId in gameState.discards) {
-        renderDiscardZone(playerId);
-    }
+    const players = ['user', 'bot1', 'bot2', 'bot3'];
+    players.forEach(pId => renderDiscardZone(pId));
 }
 
 function renderDiscardZone(playerId) {
@@ -2250,140 +2258,100 @@ function findGroups(hand) {
         if (isWildCard(t)) { okeys.push(result.leftovers.splice(i, 1)[0]); i--; }
     }
 
-    // 2. DOĞAL TAMAMLANMIŞ SERİLER VE SETLER (3+) - OKEY KULLANMADAN
-    const sets = findCompleteSets(result.leftovers);
-    sets.forEach(g => { result.complete.push(g); g.forEach(t => removeTileFromList(result.leftovers, t)); });
+    // 2. TÜM OLASI GRUPLARI ÜRET (Aday Havuzu)
+    const candidates = [];
+    const others = result.leftovers;
 
-    const runs = findCompleteRuns(result.leftovers);
-    runs.forEach(g => { result.complete.push(g); g.forEach(t => removeTileFromList(result.leftovers, t)); });
+    // A) Set Adayları (Aynı Sayı, Farklı Renk)
+    const groupedNums = groupTilesByNumber(others);
+    Object.keys(groupedNums).forEach(num => {
+        let tiles = groupedNums[num];
+        // Benzersiz renkleri al (101'de sette aynı renkten iki taş olamaz)
+        let unique = []; let seen = new Set();
+        tiles.forEach(t => { if(!seen.has(t.color)) { unique.push(t); seen.add(t.color); } });
 
-    // 4. STRATEJİK OKEY KULLANIMI: TÜM ADAYLARI PUANA GÖRE SIRALA
-    if (okeys.length > 0) {
-        let allCandidates = [];
+        // 3'lü ve 4'lü setler
+        if (unique.length >= 3) {
+            candidates.push({ tiles: unique.slice(0, 3), points: getSetPoints(unique.slice(0, 3)), type: 'set' });
+            if (unique.length === 4) candidates.push({ tiles: unique, points: getSetPoints(unique), type: 'set' });
+        }
+        // Okeyli Set (2 Taş + 1 Okey)
+        if (unique.length === 2 && okeys.length > 0) {
+            candidates.push({ tiles: [...unique, okeys[0]], points: getSetPoints([...unique, okeys[0]]), type: 'set' });
+        }
+    });
 
-        // Seri Adayları (Run candidates)
-        const runCands = groupTilesByColor(result.leftovers);
-        Object.keys(runCands).forEach(clr => {
-            let list = runCands[clr].sort((a, b) => a.number - b.number);
-            for (let i = 0; i < list.length - 1; i++) {
-                if (list[i + 1].number === list[i].number + 1 || list[i + 1].number === list[i].number + 2) {
-                    const group = [list[i], list[i + 1]];
-                    let potentialVal = evaluateCluster([...group, okeys[0]]).points;
-                    allCandidates.push({ tiles: group, val: potentialVal, type: 'run' });
-                }
+    // B) Seri Adayları (Aynı Renk, Ardışık)
+    const groupedClrs = groupTilesByColor(others);
+    Object.keys(groupedClrs).forEach(clr => {
+        let list = groupedClrs[clr].sort((a,b) => a.number - b.number);
+        // Tüm olası 3'lü ve 4'lü kombinasyonları (okeyli dahil) tara
+        for (let i = 0; i < list.length; i++) {
+            // Doğal 3'lü
+            if (i <= list.length - 3) {
+                let sub = list.slice(i, i+3);
+                if (getRunPoints(sub) > 0) candidates.push({ tiles: sub, points: getRunPoints(sub), type: 'run' });
             }
-        });
-
-        // Set Adayları (Set candidates)
-        const setCands = groupTilesByNumber(result.leftovers);
-        Object.keys(setCands).forEach(num => {
-            let list = setCands[num];
-            if (list.length >= 2) {
-                if (list[0].color !== list[1].color) {
-                    const group = [list[0], list[1]];
-                    let potentialVal = evaluateCluster([...group, okeys[0]]).points;
-                    allCandidates.push({ tiles: group, val: potentialVal, type: 'set' });
-                }
-            }
-        });
-
-        allCandidates.sort((a, b) => b.val - a.val);
-
-        const getDeadCount = (num, clr) => {
-            return Object.values(gameState.discards).flat().filter(d => d.number === num && d.color === clr).length;
-        };
-
-        allCandidates.forEach(cand => {
-            if (okeys.length > 0) {
-                const stillActive = cand.tiles.every(t => result.leftovers.find(it => it.id === t.id));
-                if (stillActive) {
-                    // --- İMKANSIZLIK KONTROLÜ ---
-                    // Eğer per okeyle tamamlanmıyorsa, eksik taşın piyasadaki durumuna bak
-                    let isPossible = true;
-                    if (cand.type === 'run') {
-                        let missingNum = (cand.tiles[1].number - cand.tiles[0].number === 2) 
-                            ? cand.tiles[0].number + 1 
-                            : (cand.tiles[1].number < 13 ? cand.tiles[1].number + 1 : cand.tiles[0].number - 1);
-                        if (getDeadCount(missingNum, cand.tiles[0].color) >= 2) isPossible = false;
-                    }
-
-                    if (isPossible) {
-                        let finalGroup = [];
-                        const ok = okeys.pop();
-                        if (cand.type === 'run' && cand.tiles[1].number - cand.tiles[0].number === 2) {
-                            finalGroup = [cand.tiles[0], ok, cand.tiles[1]];
-                        } else {
-                            finalGroup = [...cand.tiles, ok];
-                        }
-                        result.complete.push(finalGroup);
-                        cand.tiles.forEach(t => removeTileFromList(result.leftovers, t));
-                    }
-                }
-            }
-        });
-    }
-
-    // 5. Okey Olmadan "Potansiyel" Perleri Belirle (Ama ölü olanları ele)
-    // Runs (Örn: 7-8 bekliyor 9)
-    const runPotentials = groupTilesByColor(result.leftovers);
-    Object.keys(runPotentials).forEach(clr => {
-        let list = runPotentials[clr].sort((a,b) => a.number - b.number);
-        for(let i=0; i < list.length-1; i++) {
-            const t1 = list[i];
-            const t2 = list[i+1];
-            
-            // CRITICAL: Ensure both tiles are still available in leftovers
-            const inLeftovers = result.leftovers.find(it => it.id === t1.id) && 
-                              result.leftovers.find(it => it.id === t2.id);
-            if (!inLeftovers) continue;
-
-            const diff = t2.number - t1.number;
-            if (diff === 1 || diff === 2) {
-                // Beklenen taş ölü mü?
-                const missingNum = (diff === 2) ? t1.number + 1 : (t2.number < 13 ? t2.number + 1 : t1.number - 1);
-                const deadCount = Object.values(gameState.discards).flat().filter(d => d.number === missingNum && d.color === clr).length;
-                if (deadCount < 2) {
-                    result.potential.push([t1, t2]);
-                    removeTileFromList(result.leftovers, t1);
-                    removeTileFromList(result.leftovers, t2);
-                    i++; // Skip next to avoid overlap duplication
-                }
+            // Okeyli (Ara taş veya uç taş)
+            if (i <= list.length - 2 && okeys.length > 0) {
+                let pair = [list[i], list[i+1]];
+                // Ara boşluk (5-?-7) veya yan yana (5-6-?)
+                let tries = [[pair[0], okeys[0], pair[1]], [pair[0], pair[1], okeys[0]], [okeys[0], pair[0], pair[1]]];
+                tries.forEach(t => { if (getRunPoints(t) > 0) candidates.push({ tiles: t, points: getRunPoints(t), type: 'run' }); });
             }
         }
     });
 
-    const setPotentials = groupTilesByNumber(result.leftovers);
-    Object.keys(setPotentials).forEach(num => {
-        let list = setPotentials[num];
-        for(let i=0; i < list.length-1; i++) {
-            const t1 = list[i];
-            const t2 = list[i+1];
+    // 3. EN YÜKSEK PUANI VERENLERİ SEÇ (CONFLICT RESOLUTION)
+    // Puanlara göre büyükten küçüğe diz
+    candidates.sort((a, b) => b.points - a.points);
 
-            // CRITICAL: Ensure both tiles are still available in leftovers
-            const inLeftovers = result.leftovers.find(it => it.id === t1.id) && 
-                              result.leftovers.find(it => it.id === t2.id);
-            if (!inLeftovers) continue;
+    const usedIds = new Set();
+    let usedOkeyCount = 0;
 
-            if (t1.color !== t2.color) {
-                // Eksik renklerin hepsi çıkmış mı?
-                const COLORS = ['mavi', 'kirmizi', 'siyah', 'sari'];
-                const missingColors = COLORS.filter(c => c !== t1.color && c !== t2.color);
-                const allMissingDead = missingColors.every(c => {
-                    return Object.values(gameState.discards).flat().filter(d => d.number === parseInt(num) && d.color === c).length >= 2;
-                });
-                if (!allMissingDead) {
-                    result.potential.push([t1, t2]);
-                    removeTileFromList(result.leftovers, t1);
-                    removeTileFromList(result.leftovers, t2);
-                    i++; // Skip next to avoid overlap duplication
-                }
+    candidates.forEach(cand => {
+        // Bu adayın içindeki gerçek taşlar hala elde mi?
+        const realTiles = cand.tiles.filter(t => !isWildCard(t));
+        const hasOkey = cand.tiles.some(t => isWildCard(t));
+        
+        const canUseReal = realTiles.every(t => !usedIds.has(t.id));
+        const canUseOkey = !hasOkey || (usedOkeyCount < okeys.length);
+
+        if (canUseReal && canUseOkey) {
+            // Grubu kabul et
+            result.complete.push(cand.tiles);
+            realTiles.forEach(t => { 
+                usedIds.add(t.id);
+                removeTileFromList(result.leftovers, t);
+            });
+            if (hasOkey) usedOkeyCount++;
+        }
+    });
+
+    // 4. POTANSİYELLERİ VE ÇİFTLERİ BELİRLE (KALANLAR ARASINDA)
+    const remaining = result.leftovers;
+    
+    // Potansiyel İkililer (9-10 gibi)
+    const pRuns = groupTilesByColor(remaining);
+    Object.keys(pRuns).forEach(clr => {
+        let l = pRuns[clr].sort((a,b) => a.number - b.number);
+        for(let i=0; i<l.length-1; i++) {
+            if (l[i+1].number - l[i].number <= 2) {
+                result.potential.push([l[i], l[i+1]]);
+                removeTileFromList(result.leftovers, l[i]);
+                removeTileFromList(result.leftovers, l[i+1]);
+                i++;
             }
         }
     });
 
-    // 3. ÇİFTLERİ AYIR (Seri/Potansiyelleri bozmamak için en sona alındı)
+    // Çiftler
     const identicals = {};
-    result.leftovers.forEach(t => { const k = `${t.number}_${t.color}`; if (!identicals[k]) identicals[k] = []; identicals[k].push(t); });
+    result.leftovers.forEach(t => {
+        const k = `${t.number}_${t.color}`;
+        if (!identicals[k]) identicals[k] = [];
+        identicals[k].push(t);
+    });
     Object.keys(identicals).forEach(k => {
         let list = identicals[k];
         while (list.length >= 2) {
@@ -2393,8 +2361,6 @@ function findGroups(hand) {
         }
     });
 
-    // Kalan Okeyleri Başa Al
-    okeys.forEach(o => result.leftovers.unshift(o));
     return result;
 }
 
@@ -2523,116 +2489,32 @@ function sortRunGroupInPlace(group) {
 }
 
 function autoSortSeries() {
-    let userHand = gameState.players.user.hand.filter(t => t);
-    let okeys = userHand.filter(t => isWildCard(t));
-    let others = userHand.filter(t => !isWildCard(t));
+    let hand = gameState.players.user.hand.filter(t => t);
+    
+    // Akıllı per bulucu
+    const { complete, leftovers } = findGroups(hand);
 
-    // 1. TAM PERLER
-    const sets = findCompleteSets(others);
-    sets.forEach(g => { g.forEach(t => removeTileFromList(others, t)); });
-
-    const runs = findCompleteRuns(others);
-    runs.forEach(g => { g.forEach(t => removeTileFromList(others, t)); });
-
-    let completeGroups = [...sets, ...runs];
-
-    // 2. OKEYLERİ SETLERE (11, 11) YEDİRME (ÖNCELİK 1)
-    let setCandidates = [];
-    const groupedNums = groupTilesByNumber(others);
-    Object.keys(groupedNums).forEach(num => {
-        let u = []; let s = new Set();
-        groupedNums[num].forEach(t => { if (!s.has(t.color)) { u.push(t); s.add(t.color); } });
-        if (u.length === 2 && okeys.length > 0) {
-            setCandidates.push(u);
-        }
-    });
-    setCandidates.sort((a, b) => b[0].number - a[0].number);
-    setCandidates.forEach(u => {
-        if (okeys.length > 0) {
-            // Hala others içinde mi kontrol et
-            let hasBoth = others.find(x => x.id === u[0].id) && others.find(x => x.id === u[1].id);
-            if (hasBoth) {
-                u.forEach(t => removeTileFromList(others, t));
-                let okey = okeys.pop();
-                u.push(okey);
-                completeGroups.push(u);
-            }
-        }
-    });
-
-    // 3. OKEYLERİ SERİLERE (10-12 veya 10-11) YEDİRME (ÖNCELİK 2)
-    let runCandidates = [];
-    const groupedClrs = groupTilesByColor(others);
-    Object.keys(groupedClrs).forEach(clr => {
-        let l = groupedClrs[clr].sort((a,b) => a.number - b.number);
-        for (let i = 0; i < l.length - 1; i++) {
-            let diff = l[i+1].number - l[i].number;
-            if ((diff === 1 || diff === 2) && okeys.length > 0) {
-                runCandidates.push([l[i], l[i+1]]);
-            }
-        }
-    });
-    runCandidates.sort((a, b) => b[1].number - a[1].number);
-    runCandidates.forEach(u => {
-        if (okeys.length > 0) {
-            let hasBoth = others.find(x => x.id === u[0].id) && others.find(x => x.id === u[1].id);
-            if (hasBoth) {
-                u.forEach(t => removeTileFromList(others, t));
-                let okey = okeys.pop();
-                if (u[1].number - u[0].number === 2) {
-                    completeGroups.push([u[0], okey, u[1]]);
-                } else {
-                    completeGroups.push([u[0], u[1], okey]);
-                }
-            }
-        }
-    });
-
-    // 4. EKRANA YERLEŞTİRME
+    // EKRANA YERLEŞTİRME
     gameState.userRackSlots.fill(null);
     let currentIdx = 0;
 
-    completeGroups.forEach(group => {
+    // 1. Tamamlanmış Perleri Diz
+    complete.forEach(group => {
         group.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; });
-        if (currentIdx % 20 !== 0) currentIdx++;
+        if (currentIdx % 20 !== 0) {
+            const nextRound = Math.ceil(currentIdx / 20) * 20;
+            if (nextRound - currentIdx > 1) currentIdx++; // Sadece 1 boşluk bırak (compact look)
+        }
     });
 
-    others.sort((a, b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || a.number - b.number);
-
-    let lastColor = null;
-    let lastNum = null;
-
-    for (let i = 0; i < others.length; i++) {
-        const t = others[i];
-        if (lastColor !== null) {
-            if (t.color !== lastColor) {
-                if (currentIdx % 20 !== 0) currentIdx++;
-            } else {
-                const diff = t.number - lastNum;
-                if (diff === 2 && currentIdx < 39) currentIdx++;
-                else if (diff === 3 && currentIdx < 38) currentIdx += 2;
-                else if (diff > 3 && currentIdx < 39) currentIdx++;
-            }
-        }
-        if (currentIdx >= 40) {
-            const emptyIdx = gameState.userRackSlots.indexOf(null);
-            if (emptyIdx !== -1) gameState.userRackSlots[emptyIdx] = t;
-        } else {
-            gameState.userRackSlots[currentIdx] = t;
-            currentIdx++;
-        }
-        lastColor = t.color;
-        lastNum = t.number;
-    }
-
-    // Elde seriye/sete girmemiş okey kaldıysa boş yerlere at
-    okeys.forEach(t => {
-        let emptyIdx = gameState.userRackSlots.lastIndexOf(null);
-        if (emptyIdx !== -1) gameState.userRackSlots[emptyIdx] = t;
+    // 2. Kalanları Renk/Sayı Sırasına Göre Diz
+    leftovers.sort((a, b) => (COLORS.indexOf(a.color) - COLORS.indexOf(b.color)) || (a.number - b.number));
+    leftovers.forEach(t => {
+        if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t;
     });
 
     renderUserRack();
-    showGameMessage("Seri dizildi. 🎯");
+    showGameMessage("Seriler akıllıca dizildi! 🎯");
 }
 
 function autoSortPairs() {

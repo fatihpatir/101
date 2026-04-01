@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr" style="height:100%;overflow:hidden;">
 
 <head>
@@ -239,6 +239,43 @@
         }
 
         .btn-divider { display: none !important; } /* Yer kazanmak için kaldırıldı */
+
+        /* YENİ: SABİT KULLANICI ETİKETİ - EN ALT ORTA */
+        #user-name-plaque {
+            position: fixed !important;
+            bottom: max(6px, env(safe-area-inset-bottom, 6px)) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 9500 !important;
+            color: rgba(255, 255, 255, 1) !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 0.72rem !important;
+            font-weight: 800 !important;
+            letter-spacing: 2px !important;
+            text-transform: uppercase !important;
+            
+            /* PREMIUM GLASSMORPHISM */
+            background: rgba(0, 0, 0, 0.55) !important;
+            backdrop-filter: blur(8px) !important;
+            -webkit-backdrop-filter: blur(8px) !important;
+            padding: 4px 16px !important;
+            border-radius: 20px !important;
+            border: 1.5px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.05) !important;
+
+            pointer-events: none !important;
+            white-space: nowrap !important;
+            user-select: none !important;
+        }
+
+        @media (max-width: 900px) {
+            #user-name-plaque {
+                font-size: 0.65rem !important;
+                bottom: 4px !important;
+                padding: 3px 12px !important;
+                letter-spacing: 1.5px !important;
+            }
+        }
     </style>
 </head>
 
@@ -344,7 +381,6 @@
                                 <button class="action-rect btn-open-pairs" id="btn-open-pairs">ÇİFT AÇ</button>
                                 <button class="action-rect btn-util" id="btn-process">İŞLE</button>
                                 <div class="btn-divider" style="width: 1px; height: 16px; background: rgba(251, 192, 45, 0.2); margin: 0 6px;"></div>
-                                <div class="action-rect" id="user-name-plaque" style="background: rgba(62, 39, 35, 0.9) !important; color: #fbc02d !important; font-weight: 950 !important; cursor: default !important; pointer-events: none !important; border-color: rgba(251, 192, 45, 0.4) !important;">FATİH</div>
                             </div>
 
                             <div class="hand-stats">
@@ -363,6 +399,8 @@
                     </div>
                 </div>
             </div>
+            <!-- Sabit Kullanıcı Etiketi (En Alt Orta) -->
+            <div id="user-name-plaque">FATİH</div>
         </div>
     </div>
     <!-- Yaz-Boz (Skor Board) Modal -->
