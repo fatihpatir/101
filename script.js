@@ -2317,6 +2317,11 @@ function findGroups(hand) {
         }
     });
 
+    // 5. Kalan kullanılmayan okeyleri artıklara geri ekle
+    for (let i = usedOkeyCount; i < okeys.length; i++) {
+        result.leftovers.push(okeys[i]);
+    }
+
     return result;
 }
 
@@ -2448,7 +2453,7 @@ function autoSortSeries() {
     let hand = gameState.players.user.hand.filter(t => t);
     
     // Akıllı per bulucu
-    const { complete, leftovers } = findGroups(hand);
+    let { complete, pairs, potential, leftovers } = findGroups(hand);
 
     // EKRANA YERLEŞTİRME
     gameState.userRackSlots.fill(null);
@@ -2457,15 +2462,19 @@ function autoSortSeries() {
     // 1. Tamamlanmış Perleri Diz
     complete.forEach(group => {
         group.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; });
-        if (currentIdx % 20 !== 0) {
-            const nextRound = Math.ceil(currentIdx / 20) * 20;
-            if (nextRound - currentIdx > 1) currentIdx++; // Sadece 1 boşluk bırak (compact look)
-        }
+        // Birer boşluk bırak (eğer yer varsa)
+        if (currentIdx % 20 !== 0 && currentIdx < 40) currentIdx++;
     });
 
-    // 2. Kalanları Renk/Sayı Sırasına Göre Diz
-    leftovers.sort((a, b) => (COLORS.indexOf(a.color) - COLORS.indexOf(b.color)) || (a.number - b.number));
-    leftovers.forEach(t => {
+    // 2. Kalanları Topla (Çiftler, Potansiyeller ve Artıklar)
+    let remaining = [...leftovers];
+    pairs.forEach(p => remaining.push(...p));
+    potential.forEach(p => remaining.push(...p));
+
+    // Kalanları Renk/Sayı Sırasına Göre Diz
+    remaining.sort((a, b) => (COLORS.indexOf(a.color) - COLORS.indexOf(b.color)) || (a.number - b.number));
+    
+    remaining.forEach(t => {
         if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t;
     });
 
