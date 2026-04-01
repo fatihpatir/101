@@ -2307,5 +2307,10 @@ body.dragging-mode .discard-zone#discard-user {
     user-select: none;
 }
 
+input, textarea {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
+
 
 
