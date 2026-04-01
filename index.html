@@ -159,24 +159,8 @@
             .stat-item span { margin-left: 4px !important; }
         }
 
-        /* MASAÜSTÜ HAYALET MÜHÜR (CENTER WATERMARK) */
-        .table-watermark {
-            position: fixed !important;
-            top: 50% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%) rotate(-25deg) !important;
-            font-size: 1.5rem !important; /* Mikro ve ultra-minimal mühür boyutu */
-            font-weight: 900 !important;
-            color: rgba(255, 255, 255, 0.08) !important;
-            pointer-events: none !important;
-            z-index: 1000 !important;
-            white-space: nowrap !important;
-            text-transform: uppercase !important;
-            font-family: 'Outfit', sans-serif !important;
-            letter-spacing: 6px !important;
-            user-select: none !important;
-            text-shadow: none !important;
-        }
+        /* MASAÜSTÜ HAYALET MÜHÜR (CENTER WATERMARK) - Eski stil silindi, style.css kullanılacak */
+
 
         /* BOT İSİMLERİ - DİKEY VE SABİT NİZAM (KIPIRDAMA YASAK) */
         .player-slot.left .name-tag, 
@@ -350,6 +334,7 @@
 
             <!-- Orta Alan: Bölünmüş Oyun Alanı -->
             <div class="center-grid-container">
+                <div class="table-watermark">101 OKEY</div>
                     <!-- Seri Açma Alanı (%70) -->
                 <div class="play-section" id="series-section">
                     <div class="section-label">SERİLER</div>

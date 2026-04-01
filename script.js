@@ -1194,16 +1194,23 @@ function processUserDiscard(tileId) {
     // ISTAKAYI ANINDA GÜNCELLE (En kritik düzeltme)
     renderAll(); 
 
-    // --- ÖZEL KURAL: YANDAN TAŞ ALDIYSA AÇMAK ZORUNDA ---
-    if (gameState.stoleDiscard && !gameState.players.user.hasOpened) {
-        showGameMessage("Yandan taş aldığınız için elinizi açmak zorundasınız!", "error");
-        // Yanlış hamleyi geri al (Opsiyonel: Ceza da kesilebilir)
-        // Şimdilik atmasına engel olalım
-        gameState.players.user.hand.push(tile);
-        if (rackIdx !== -1) gameState.userRackSlots[rackIdx] = tile;
-        renderAll();
-        return;
+    // --- ÖZEL KURAL: YANDAN TAŞ ALDIYSA KULLANMAK ZORUNDA ---
+    if (gameState.stoleDiscard) {
+        const stolenTileStillInHand = gameState.players.user.hand.some(t => t.id === gameState.stolenTileId);
+        
+        if (stolenTileStillInHand) {
+            showGameMessage("Yandan aldığınız taşı masaya açmak zorundasınız!", "error");
+            // Atma işlemini durdur, taşı geri koy
+            gameState.players.user.hand.push(tile);
+            if (rackIdx !== -1) gameState.userRackSlots[rackIdx] = tile;
+            renderAll();
+            return;
+        }
     }
+
+    // Başarıyla atıldıysa durumları sıfırla
+    gameState.stoleDiscard = false;
+    gameState.stolenTileId = null;
 
     // --- KURAL: OKEY ATMA CEZASI ---
     if (isWildCard(tile) && gameState.players.user.hand.length > 0) {
@@ -1364,25 +1371,33 @@ async function botPlay() {
 
              // --- BOT HAFIZASI VE STRATEJİSİ ---
              // 1. Çıkmış taşları (discards) tara. Eğer bir taşın yancısı/eşi çoktan çıkmışsa potansiyeli düşüktür.
-             const getPotential = (tile) => {
+             const getAtilabilirlik = (tile) => {
+                 let score = 0;
+                 if (!bot.hasOpened) {
+                     // HENÜZ AÇMAMIŞSA: Büyük taşları ELİNDE TUT (Rakipler 101 yapmasın + Kendi 101'ine yarasın). 
+                     // Küçük taşlar daha atılabilir (skoru yüksek olanı atacaktır).
+                     score = (14 - tile.number); // 1 için 13, 13 için 1 puan.
+                 } else if (bot.hasOpened && bot.openedType === 'pairs') {
+                     // ÇİFFTEN AÇMIŞSA: Büyük taşları ELDEN ÇIKAR (Çiftte sayılar 2 ile çarpılır, riskli!)
+                     score = tile.number * 2; 
+                 } else {
+                     // SERİDEN AÇMIŞSA: Normal okey mantığı (İşine yaramayan en büyük taşı at)
+                     score = tile.number;
+                 }
+                 
+                 // Ölü taş (eşi/yancısı çoktan çıkmış) ise atılabilirliği artır
                  const deadCount = Object.values(gameState.discards).flat().filter(d => 
-                    (d.number === tile.number && d.color === tile.color) || // Eşi çıkmış
-                    (d.color === tile.color && Math.abs(d.number - tile.number) === 1) // Yancısı çıkmış
+                    (d.number === tile.number && d.color === tile.color) || 
+                    (d.color === tile.color && Math.abs(d.number - tile.number) === 1)
                  ).length;
-                 // Puan riskini ve gelme ihtimalini dengele
-                 return (14 - tile.number) - (deadCount * 2); // Küçük sayılar ve ölü taşlar daha az "potansiyel" (yani daha atılabilir)
+                 
+                 return score + (deadCount * 5); 
              };
 
-             // Potansiyeli en düşük olanı (en atılabilir olanı) seç
-             const sortedByAtilabilirlik = allNonIshlek.sort((a, b) => getPotential(a) - getPotential(b));
-             
-             // Eğer eli açmaya yetecek puana (101) çok yaklaştıysa puan boşaltmak için en büyüğü atabilir
-             const currentHandPoints = evaluateCluster(bot.hand).points;
-             if (currentHandPoints > 85) {
-                return allNonIshlek.sort((a,b) => b.number - a.number)[0];
-             }
-             
+             // Atılabilirliği (skoru) en yüksek olanı seç (En gereksiz taş)
+             const sortedByAtilabilirlik = allNonIshlek.sort((a, b) => getAtilabilirlik(b) - getAtilabilirlik(a));
              return sortedByAtilabilirlik[0];
+
         };
 
 
@@ -1957,37 +1972,94 @@ function attemptStealDiscard(targetSlotIdx = -1) {
 
     const { tile, playerId } = gameState.lastDiscard;
 
-    // Sınav: Bu taşla birlikte elimde 101 puan eder mi?
     const hasOpened = gameState.players.user.hasOpened;
     let allowedToSteal = false;
 
-    if (hasOpened) {
-        allowedToSteal = true;
-    } else {
-        const hypotheticalHand = [...gameState.players.user.hand, tile];
-        const hypotheticalGroups = findGroups(hypotheticalHand);
+    // Simülasyon elini hazırla
+    const hypotheticalHand = [...gameState.players.user.hand, tile];
+    const hypotheticalGroups = findGroups(hypotheticalHand);
 
+    // İŞLEK KONTROLÜ (Masadaki perlere uyuyor mu?)
+    let isIshlek = false;
+    const owners = ['user', 'bot1', 'bot2', 'bot3'];
+    owners.forEach(owner => {
+        (gameState.table[owner] || []).forEach(group => {
+            if (isValidAddition(tile, group)) isIshlek = true;
+        });
+    });
+
+    const isTileUsedInComplete = hypotheticalGroups.complete.some(group => 
+        group.some(t => t.id === tile.id)
+    );
+    const isTileUsedInPair = hypotheticalGroups.pairs.some(p => 
+        p.some(t => t.id === tile.id)
+    );
+
+    // ZİNCİRLEME İŞLEK KONTROLÜ (Kullanıcının örneği: 3-4-5 masada, elimde 6 var, yandan 7 alıp ikisini birden işleyebilir miyim?)
+    let canAttachWithHand = false;
+    owners.forEach(owner => {
+        (gameState.table[owner] || []).forEach(group => {
+            if (group.length > 0 && group[0].number === group[1].number) {
+                // SET (Aynı Sayı): Zincirleme olmaz, taş direkt girmeli. (Zaten isIshlek bakar)
+                return;
+            }
+            
+            // SERİ (Sıralı): 
+            if (tile.color !== group[0].color) return;
+            
+            const tableNums = group.map(t => t.number).sort((a,b)=>a-b);
+            const min = tableNums[0];
+            const max = tableNums[tableNums.length - 1];
+            
+            // ÜSTTEN ZİNCİR: (Örn: 5 masada, 6 elimde, 7 çalıyorum)
+            if (tile.number > max) {
+                let needed = [];
+                for (let n = max + 1; n < tile.number; n++) needed.push(n);
+                const hasAllNeeded = needed.every(num => 
+                    gameState.players.user.hand.some(ht => ht.number === num && ht.color === tile.color)
+                );
+                if (hasAllNeeded) canAttachWithHand = true;
+            }
+            
+            // ALTTAN ZİNCİR: (Örn: 5 masada, 4 elimde, 3 çalıyorum)
+            if (tile.number < min) {
+                let needed = [];
+                for (let n = tile.number + 1; n < min; n++) needed.push(n);
+                const hasAllNeeded = needed.every(num => 
+                    gameState.players.user.hand.some(ht => ht.number === num && ht.color === tile.color)
+                );
+                if (hasAllNeeded) canAttachWithHand = true;
+            }
+        });
+    });
+
+    if (hasOpened) {
+        // AÇILMIŞ OYUNCU: Per/Çift/İşlek VEYA Zincirleme İşlek
+        if (isTileUsedInComplete || isTileUsedInPair || isIshlek || canAttachWithHand) {
+            allowedToSteal = true;
+        } else {
+            showGameMessage(`Bu taş (${tile.number}) ne elinde bir per/çift yapıyor ne de masadaki perlerden birine uyuyor.`);
+            return;
+        }
+    } else {
+        // HENÜZ AÇMAMIŞ OYUNCU: Hem per/çift yapmalı HEM DE 101/5-çift barajını geçmeli.
         let totalPts = 0;
         [...hypotheticalGroups.complete].forEach(g => {
             totalPts += evaluateCluster(g).points;
         });
-
         const totalPairs = countPossiblePairs(hypotheticalHand);
         const canOpenWith101 = totalPts >= 101;
         const canOpenWith5Pairs = totalPairs >= 5;
 
-        // KURAL: Alınan taş MUTLAKA bir per grubunun içinde kullanılmalıdır.
-        const isTileUsedInComplete = hypotheticalGroups.complete.some(group => 
-            group.some(t => t.id === tile.id)
-        );
-
-        if ((canOpenWith101 || canOpenWith5Pairs) && isTileUsedInComplete) {
+        if (canOpenWith101 && isTileUsedInComplete) {
+            allowedToSteal = true;
+        } else if (canOpenWith5Pairs && isTileUsedInPair) {
             allowedToSteal = true;
         } else {
-            if (!isTileUsedInComplete) {
-                showGameMessage(`Bu taş (${tile.number}) bir per tamamlamıyor veya açmanız için gerekli değil.`);
+            if (canOpenWith101 || canOpenWith5Pairs) {
+                showGameMessage(`Bu taş (${tile.number}) açmanız için gereken per/çiftin içinde değil.`);
             } else {
-                showGameMessage(`Bu taş ile ne 101 puan (${totalPts}) ne de 5 çift (${totalPairs}) yapabiliyorsun.`);
+                showGameMessage(`Bu taş ile henüz açma sınırına (101 Puan veya 5 Çift) ulaşamıyorsun.`);
             }
             return;
         }
@@ -2010,6 +2082,7 @@ function attemptStealDiscard(targetSlotIdx = -1) {
     gameState.lastDiscard = null;
     gameState.hasDrawn = true;
     gameState.stoleDiscard = true;
+    gameState.stolenTileId = tile.id; // Hangi taşı çaldığını kaydet (Zorunlu kullanım takibi)
     renderAll();
     showGameMessage(`${tile.number} numaralı taş çalındı! Açmak zorundasınız. 🔥`);
 }
@@ -2046,12 +2119,57 @@ function toggleTileSelection(tileId) {
 function moveTileToSlot(tileId, newIdx) {
     const oldIdx = gameState.userRackSlots.findIndex(t => t?.id === tileId);
     if (oldIdx === -1) return;
+    if (oldIdx === newIdx) { renderUserRack(); return; }
 
     const tile = gameState.userRackSlots[oldIdx];
-    const targetTile = gameState.userRackSlots[newIdx];
-
-    gameState.userRackSlots[newIdx] = tile;
-    gameState.userRackSlots[oldIdx] = targetTile;
+    
+    // Hedef slot doluyu ise KAYDIRMA (SHIFT) yapalım
+    if (gameState.userRackSlots[newIdx] !== null) {
+        let emptyIdx = -1;
+        
+        // 1. Önce SAĞA doğru boşluk ara
+        for (let i = newIdx + 1; i < 40; i++) {
+            if (gameState.userRackSlots[i] === null) {
+                emptyIdx = i;
+                break;
+            }
+        }
+        
+        if (emptyIdx !== -1) {
+            // Sağa kaydır (newIdx'ten emptyIdx'e kadar olanları 1 sağa it)
+            for (let i = emptyIdx; i > newIdx; i--) {
+                gameState.userRackSlots[i] = gameState.userRackSlots[i - 1];
+            }
+            gameState.userRackSlots[newIdx] = tile;
+            gameState.userRackSlots[oldIdx] = null; // Eski yeri boşalt (eğer kayma sırasında dolmadıysa)
+        } else {
+            // 2. Sağda yer yoksa SOLA doğru boşluk ara
+            for (let i = newIdx - 1; i >= 0; i--) {
+                if (gameState.userRackSlots[i] === null) {
+                    emptyIdx = i;
+                    break;
+                }
+            }
+            
+            if (emptyIdx !== -1) {
+                // Sola kaydır (emptyIdx'ten newIdx'e kadar olanları 1 sola it)
+                for (let i = emptyIdx; i < newIdx; i++) {
+                    gameState.userRackSlots[i] = gameState.userRackSlots[i + 1];
+                }
+                gameState.userRackSlots[newIdx] = tile;
+                gameState.userRackSlots[oldIdx] = null;
+            } else {
+                // 3. Hiç yer yoksa mecbur SWAP (Eski mantık)
+                const targetTile = gameState.userRackSlots[newIdx];
+                gameState.userRackSlots[newIdx] = tile;
+                gameState.userRackSlots[oldIdx] = targetTile;
+            }
+        }
+    } else {
+        // Hedef zaten boş, direkt taşı
+        gameState.userRackSlots[newIdx] = tile;
+        gameState.userRackSlots[oldIdx] = null;
+    }
 
     renderUserRack();
 }
@@ -2078,9 +2196,13 @@ function handleTouchStartSlot(e) {
     const tile = gameState.userRackSlots[idx];
     if (tile) {
         gameState.touch.draggedTileId = tile.id;
-        // Phantom'u hemen değil, hareket başlayınca veya kısa süre sonra oluşturacağız 
-        // ki tıklama (selection) ile sürükleme ayrışabilsin.
-        // Ama şimdilik sadece sürükleme modunu açalım.
+        gameState.touch.draggedTile = tile;
+        gameState.touch.originalIdx = idx;
+        
+        // Istakadan görsel olarak "kaldır" (Slotu boşalt)
+        gameState.userRackSlots[idx] = null;
+        renderUserRack();
+
         document.body.classList.add('dragging-mode');
         createPhantom(this);
     }
@@ -2135,31 +2257,71 @@ function handleTouchEnd(e) {
             return;
         }
 
-        // Isktan içi veya Atma kontrolü
+        // Istaka içi veya Atma kontrolü
         if (dId) {
-            const slot = targetEl?.closest('.tile-slot');
-            const rect = document.getElementById('discard-user')?.getBoundingClientRect();
-            let isInDiscard = !!targetEl?.closest('#discard-user');
+            const touch = e.changedTouches[0];
+            const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+            const originalTile = gameState.touch.draggedTile;
+            const originalIdx = gameState.touch.originalIdx;
 
-            if (!isInDiscard && rect) {
-                const margin = 60; // Biraz daha genişletilmiş tolerans
-                if (touch.clientX >= rect.left - margin && touch.clientX <= rect.right + margin &&
-                    touch.clientY >= rect.top - margin && touch.clientY <= rect.bottom + margin) {
-                    isInDiscard = true;
+            let targetIdx = -1;
+            const slot = targetEl?.closest('.tile-slot');
+            
+            if (slot) {
+                targetIdx = parseInt(slot.dataset.index);
+            } else {
+                // Eğer doğrudan slot üstünde değilse ama rack üzerindeyse, en yakın slotu bul
+                const rack = targetEl?.closest('.rack-wrapper') || targetEl?.closest('.user-rack-container');
+                if (rack) {
+                    const slots = document.querySelectorAll('.tile-slot');
+                    let minD = 9999;
+                    slots.forEach(s => {
+                        const r = s.getBoundingClientRect();
+                        const dx = (r.left + r.width/2) - touch.clientX;
+                        const dy = (r.top + r.height/2) - touch.clientY;
+                        const d = Math.sqrt(dx*dx + dy*dy);
+                        if (d < minD && d < 120) { // 120px tolerans (Sürükleme için daha esnek)
+                            minD = d;
+                            targetIdx = parseInt(s.dataset.index);
+                        }
+                    });
                 }
             }
 
-            if (slot) moveTileToSlot(dId, parseInt(slot.dataset.index));
-            else if (isInDiscard) processUserDiscard(dId);
-            else if (targetEl?.closest('.table-group') || targetEl?.closest('.process-slot')) {
-                 let groupEl = targetEl.closest('.table-group');
-                 if (groupEl) handleProcessTile(dId, parseInt(groupEl.dataset.index), groupEl.dataset.owner);
+            const discardRect = document.getElementById('discard-user')?.getBoundingClientRect();
+            let isInDiscard = !!targetEl?.closest('#discard-user');
+            if (!isInDiscard && discardRect) {
+                 const m = 60;
+                 if (touch.clientX >= discardRect.left-m && touch.clientX <= discardRect.right+m &&
+                     touch.clientY >= discardRect.top-m && touch.clientY <= discardRect.bottom+m) {
+                     isInDiscard = true;
+                 }
             }
-            else if (targetEl?.closest('#series-field') || targetEl?.closest('#pairs-field')) {
-                 attemptOpenCluster(dId);
+
+            if (targetIdx !== -1) {
+                // Önce taşı geri koy (moveTileToSlot findIndex ile çalıştığı için)
+                gameState.userRackSlots[originalIdx] = originalTile;
+                moveTileToSlot(dId, targetIdx);
+            } else if (isInDiscard) {
+                gameState.userRackSlots[originalIdx] = originalTile; // Geri koy ki oradan silinsin
+                processUserDiscard(dId);
+            } else if (targetEl?.closest('.table-group') || targetEl?.closest('.process-slot') || targetEl?.closest('#series-field') || targetEl?.closest('#pairs-field')) {
+                gameState.userRackSlots[originalIdx] = originalTile;
+                if (targetEl?.closest('.table-group') || targetEl?.closest('.process-slot')) {
+                    let gEl = targetEl.closest('.table-group');
+                    if (gEl) handleProcessTile(dId, parseInt(gEl.dataset.index), gEl.dataset.owner);
+                } else {
+                    attemptOpenCluster(dId);
+                }
+            } else {
+                // Hiçbir yere atılamadı, eski yerine iade et
+                gameState.userRackSlots[originalIdx] = originalTile;
+                renderUserRack();
             }
 
             gameState.touch.draggedTileId = null;
+            gameState.touch.draggedTile = null;
+            gameState.touch.originalIdx = -1;
         }
     }
 }
@@ -2480,32 +2642,126 @@ function sortRunGroupInPlace(group) {
 }
 
 function autoSortSeries() {
-    let hand = gameState.players.user.hand.filter(t => t);
-    
-    // Akıllı per bulucu
-    let { complete, pairs, potential, leftovers } = findGroups(hand);
-
-    // EKRANA YERLEŞTİRME
+    let allTiles = gameState.players.user.hand.filter(t => t);
+    let usedIds = new Set();
     gameState.userRackSlots.fill(null);
     let currentIdx = 0;
 
-    // 1. Tamamlanmış Perleri Diz
-    complete.forEach(group => {
-        group.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; });
-        // Birer boşluk bırak (eğer yer varsa)
+    const addToRack = (tile) => {
+        if (!tile || usedIds.has(tile.id)) return false;
+        if (currentIdx < 40) {
+            gameState.userRackSlots[currentIdx++] = tile;
+            usedIds.add(tile.id);
+            return true;
+        }
+        return false;
+    };
+
+    const addGap = () => {
         if (currentIdx % 20 !== 0 && currentIdx < 40) currentIdx++;
+    };
+
+    // YENİ: Satıra sığma kontrolü (Kapasite emniyetli)
+    const ensureRowFit = (len) => {
+        let currentPosInRow = currentIdx % 20;
+        let remainingTiles = allTiles.length - usedIds.size;
+        
+        // Eğer ilk satırdaysak VE grup sığmıyorsa;
+        // Sadece kalan tüm taşlar ikinci satıra (20 slot) sığacaksa atla.
+        // Böylece 21-22 taşı olan oyuncunun taşları dışarıda kalmaz.
+        if (currentIdx < 20 && (currentPosInRow + len > 20)) {
+            if (remainingTiles <= 20) {
+                currentIdx = 20;
+            }
+        }
+    };
+
+    // 1. TAMAMLANMIŞ GRUPLARI BUL (3+)
+    let { complete } = findGroups(allTiles);
+    complete.forEach(group => {
+        if (getRunPoints(group) > 0) sortRunGroupInPlace(group);
+        
+        ensureRowFit(group.length);
+        
+        group.forEach(t => addToRack(t));
+        addGap();
     });
 
-    // 2. Kalanları Topla (Çiftler, Potansiyeller ve Artıklar)
-    let remaining = [...leftovers];
-    pairs.forEach(p => remaining.push(...p));
-    potential.forEach(p => remaining.push(...p));
-
-    // Kalanları Renk/Sayı Sırasına Göre Diz
-    remaining.sort((a, b) => (COLORS.indexOf(a.color) - COLORS.indexOf(b.color)) || (a.number - b.number));
+    // 2. ZİNCİRLERİ BUL (POTANSİYEL SERİLER - 2+ Taş, Boşluklu Dahil)
+    let remainingForRuns = allTiles.filter(t => !usedIds.has(t.id));
+    const colorGroups = groupTilesByColor(remainingForRuns);
     
-    remaining.forEach(t => {
-        if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t;
+    Object.keys(colorGroups).forEach(clr => {
+        let list = colorGroups[clr].sort((a,b) => a.number - b.number);
+        for (let i = 0; i < list.length; i++) {
+            if (usedIds.has(list[i].id)) continue;
+            
+            let chain = [list[i]];
+            let lastNum = list[i].number;
+            
+            for (let j = i + 1; j < list.length; j++) {
+                if (usedIds.has(list[j].id)) continue;
+                let diff = list[j].number - lastNum;
+                if (diff >= 1 && diff <= 2) {
+                    chain.push(list[j]);
+                    lastNum = list[j].number;
+                } else if (diff === 0) {
+                    continue; 
+                } else {
+                    break;
+                }
+            }
+            
+            if (chain.length >= 2) {
+                // Toplam uzunluğu (boşluklar dahil) hesapla
+                let totalVisualLen = chain.length;
+                for (let k = 1; k < chain.length; k++) {
+                    if (chain[k].number - chain[k-1].number === 2) totalVisualLen++;
+                }
+                
+                ensureRowFit(totalVisualLen);
+
+                for (let k = 0; k < chain.length; k++) {
+                    if (k > 0 && chain[k].number - chain[k-1].number === 2) {
+                        if (currentIdx < 40) currentIdx++; 
+                    }
+                    addToRack(chain[k]);
+                }
+                addGap();
+            }
+        }
+    });
+
+    // 3. ZİNCİRLERİ BUL (POTANSİYEL SETLER - Aynı Sayı Farklı Renk)
+    let remainingForSets = allTiles.filter(t => !usedIds.has(t.id));
+    const numGroups = groupTilesByNumber(remainingForSets);
+    
+    Object.keys(numGroups).sort((a,b) => parseInt(a)-parseInt(b)).forEach(num => {
+        let list = numGroups[num];
+        let uniqueForSet = [];
+        let colorsUsed = new Set();
+        
+        list.forEach(t => {
+            if (!usedIds.has(t.id) && !colorsUsed.has(t.color)) {
+                uniqueForSet.push(t);
+                colorsUsed.add(t.color);
+            }
+        });
+        
+        if (uniqueForSet.length >= 2) {
+            ensureRowFit(uniqueForSet.length);
+            uniqueForSet.forEach(t => addToRack(t));
+            addGap();
+        }
+    });
+
+    // 4. EN SON KALANLAR (Rastgele Artıklar)
+    let finalLeftovers = allTiles.filter(t => !usedIds.has(t.id));
+    // Artıkları renk ve sayıya göre sıralayalım ki düzenli dursunlar
+    finalLeftovers.sort((a, b) => (COLORS.indexOf(a.color) - COLORS.indexOf(b.color)) || (a.number - b.number));
+    
+    finalLeftovers.forEach(t => {
+        addToRack(t);
     });
 
     renderUserRack();
@@ -2552,42 +2808,63 @@ function autoSortPairs() {
 
     // 4. Perleri de dizmek için findGroups kullan (Eğer çiftlerden kalanlarla seri oluyorsa)
     let { complete, pairs: extraPairs, potential, leftovers: finalLeftovers } = findGroups(hand);
+    let totalLeftovers = [...finalLeftovers, ...okeys];
     
     gameState.userRackSlots.fill(null);
     let currentIdx = 0;
 
+    const ensureRowFit = (len) => {
+        let currentPosInRow = currentIdx % 20;
+        // Çift diziliminde tüm taşların sığacağından emin ol (Sadece ikinci satıra sığıyorsa atla)
+        // Mevcut idx'ten itibaren kaç taş dizeceğimiz:
+        let totalRemaining = (pairs.filter((p,i)=>i >= currentIdx/3).length * 2) + 
+                            complete.reduce((a,b)=>a+b.length, 0) + 
+                            extraPairs.length * 2 + 
+                            potential.reduce((a,b)=>a+b.length, 0) + 
+                            totalLeftovers.length;
+        
+        if (currentIdx < 20 && (currentPosInRow + len > 20)) {
+            if (totalRemaining <= 20) {
+                currentIdx = 20;
+            }
+        }
+    };
+
     // Önce çiftleri diz (Başa)
     pairs.forEach(p => { 
         if (currentIdx < 39) { 
+            ensureRowFit(2);
             gameState.userRackSlots[currentIdx++] = p[0]; 
             gameState.userRackSlots[currentIdx++] = p[1]; 
-            currentIdx++; 
+            if (currentIdx % 20 !== 0) currentIdx++; // Gap
         } 
     });
 
     // Varsa tam perleri diz (Orta)
     complete.forEach(g => { 
+        ensureRowFit(g.length);
         g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); 
-        currentIdx++; 
+        if (currentIdx % 20 !== 0) currentIdx++; // Gap
     });
 
     // Varsa ekstra çiftleri diz
     extraPairs.forEach(p => {
         if (currentIdx < 39) {
+            ensureRowFit(2);
             gameState.userRackSlots[currentIdx++] = p[0];
             gameState.userRackSlots[currentIdx++] = p[1];
-            currentIdx++;
+            if (currentIdx % 20 !== 0) currentIdx++; // Gap
         }
     });
 
     // Varsa potansiyelleri diz
     potential.forEach(g => { 
+        ensureRowFit(g.length);
         g.forEach(t => { if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; }); 
-        currentIdx++; 
+        if (currentIdx % 20 !== 0) currentIdx++; // Gap
     });
 
     // Kalan tektaşları ve tek kalan okeyleri diz
-    let totalLeftovers = [...finalLeftovers, ...okeys];
     totalLeftovers.sort((a, b) => (COLORS.indexOf(a.color) - COLORS.indexOf(b.color)) || (a.number - b.number))
         .forEach(t => { 
             if (currentIdx < 40) gameState.userRackSlots[currentIdx++] = t; 
