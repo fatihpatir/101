@@ -311,7 +311,9 @@ function dealTiles() {
 
 // --- RENDERING (ARAYÜZ ÇİZİMİ) ---
 function renderAll() {
+    syncUserOpenStatus();
     document.querySelectorAll('.phantom-drag').forEach(el => el.remove());
+
     renderUserRack();
     renderIndicator();
     renderTable(); // Masaya açılanları göster
@@ -469,6 +471,39 @@ function updateHandPoints() {
         pairEl.style.color = (totalPairs >= 5 || isOpened) ? '#4aff4a' : '';
     }
 }
+
+function syncUserOpenStatus() {
+    const player = gameState.players.user;
+    if (player.hasOpened) return; // Zaten açmışsa dokunma
+
+    const groups = gameState.table.user || [];
+    if (groups.length === 0) return;
+
+    let totalPts = 0;
+    let totalPairs = 0;
+    let hasSeries = false;
+
+    groups.forEach(g => {
+        const res = evaluateCluster(g);
+        totalPts += res.points;
+        if (res.pairs === 1) totalPairs++;
+        if (res.points > 0) hasSeries = true;
+    });
+
+    if (!hasSeries && totalPairs >= 5) {
+        player.hasOpened = true;
+        player.openedType = 'pairs';
+        gameState.pairsOpened = true;
+        AudioEngine.play('open');
+        showGameMessage("Tebrikler, 5 çift ile açtınız! 🎉");
+    } else if (totalPts >= 101) {
+        player.hasOpened = true;
+        player.openedType = 'series';
+        AudioEngine.play('open');
+        showGameMessage("Tebrikler, 101 barajını geçerek açtınız! 🎉");
+    }
+}
+
 
 function openSeries() {
     const player = gameState.players.user;
@@ -1127,42 +1162,10 @@ function processUserDiscard(tileId) {
     if (!tile) return;
 
     // --- EVALUATE TABLE IF NOT OFFICIALLY OPENED YET ---
-    if (!gameState.players.user.hasOpened) {
-        const groups = gameState.table.user || [];
-        if (groups.length > 0) {
-            let totalPts = 0;
-            let totalPairs = 0;
-            let hasSeries = false;
+    // --- EVALUATE TABLE IF NOT OFFICIALLY OPENED YET (Artık syncUserOpenStatus ile yapılıyor) ---
+    // Sadece güvenlik için hasOpened bayrağını burada bir kez daha kontrol ediyoruz.
+    syncUserOpenStatus();
 
-            groups.forEach(g => {
-                const res = evaluateCluster(g);
-                totalPts += res.points;
-                if (res.pairs === 1) totalPairs++;
-                if (res.points > 0) hasSeries = true;
-            });
-
-            if (!hasSeries && totalPairs > 0) {
-                if (totalPairs >= 5) {
-                    gameState.players.user.hasOpened = true;
-                    gameState.players.user.openedType = 'pairs';
-                    gameState.pairsOpened = true;
-                    showGameMessage("Tebrikler, 5 çift ile açtınız! 🎉");
-                } else {
-                    showGameMessage(`Masada ${totalPairs} çift var, 5 çift gerekli! Masadakileri çift tıklayarak geri toplayın veya tamamlayın.`, "error");
-                    return; 
-                }
-            } else if (totalPts > 0) {
-                if (totalPts >= 101) {
-                    gameState.players.user.hasOpened = true;
-                    gameState.players.user.openedType = 'series';
-                    showGameMessage("Tebrikler, seriden açtınız! 🎉");
-                } else {
-                    showGameMessage(`Masadaki perleriniz ${totalPts} puan. Baraj 101! Masadakileri çift tıklayarak geri toplayın veya barajı geçin.`, "error");
-                    return; 
-                }
-            }
-        }
-    }
 
     // --- İŞLEK TAŞ KONTROLÜ (CEZA) ---
     let isIshlek = false;
@@ -1973,11 +1976,19 @@ function attemptStealDiscard(targetSlotIdx = -1) {
         const canOpenWith101 = totalPts >= 101;
         const canOpenWith5Pairs = totalPairs >= 5;
 
-        if (canOpenWith101 || canOpenWith5Pairs) allowedToSteal = true;
-        
-        if (!allowedToSteal) {
-            let msg = `Bu taş (${tile.number}) ile ne 101 puan (${totalPts}) ne de 5 çift (${totalPairs}) yapabiliyorsun.`;
-            showGameMessage(msg);
+        // KURAL: Alınan taş MUTLAKA bir per grubunun içinde kullanılmalıdır.
+        const isTileUsedInComplete = hypotheticalGroups.complete.some(group => 
+            group.some(t => t.id === tile.id)
+        );
+
+        if ((canOpenWith101 || canOpenWith5Pairs) && isTileUsedInComplete) {
+            allowedToSteal = true;
+        } else {
+            if (!isTileUsedInComplete) {
+                showGameMessage(`Bu taş (${tile.number}) bir per tamamlamıyor veya açmanız için gerekli değil.`);
+            } else {
+                showGameMessage(`Bu taş ile ne 101 puan (${totalPts}) ne de 5 çift (${totalPairs}) yapabiliyorsun.`);
+            }
             return;
         }
     }
@@ -2241,20 +2252,39 @@ function findGroups(hand) {
     const groupedClrs = groupTilesByColor(others);
     Object.keys(groupedClrs).forEach(clr => {
         let list = groupedClrs[clr].sort((a,b) => a.number - b.number);
-        // Tüm olası 3'lü ve 4'lü kombinasyonları (okeyli dahil) tara
-        for (let i = 0; i < list.length; i++) {
-            // Doğal 3'lü
-            if (i <= list.length - 3) {
-                let sub = list.slice(i, i+3);
-                if (getRunPoints(sub) > 0) candidates.push({ tiles: sub, points: getRunPoints(sub), type: 'run' });
+        
+        // Uzun seri bulucu (3'ten 13'e kadar tüm olası serileri tara)
+        for (let len = 3; len <= 13; len++) {
+            for (let i = 0; i <= list.length - len; i++) {
+                let sub = list.slice(i, i + len);
+                let pts = getRunPoints(sub);
+                if (pts > 0) {
+                    candidates.push({ tiles: sub, points: pts, type: 'run' });
+                }
             }
-            // Okeyli (Ara taş veya uç taş)
-            if (i <= list.length - 2 && okeys.length > 0) {
-                let pair = [list[i], list[i+1]];
-                // Ara boşluk (5-?-7) veya yan yana (5-6-?)
-                let tries = [[pair[0], okeys[0], pair[1]], [pair[0], pair[1], okeys[0]], [okeys[0], pair[0], pair[1]]];
-                tries.forEach(t => { if (getRunPoints(t) > 0) candidates.push({ tiles: t, points: getRunPoints(t), type: 'run' }); });
-            }
+        }
+
+        // Okeyli Seri Adayları (Kısa ve Orta Boy)
+        if (okeys.length > 0) {
+           for (let len = 2; len <= 5; len++) {
+               for (let i = 0; i <= list.length - len; i++) {
+                   let sub = list.slice(i, i + len);
+                   // Okeyi sona, başa veya araya ekleyip test et
+                   let variations = [
+                       [...sub, okeys[0]],
+                       [okeys[0], ...sub]
+                   ];
+                   // İçerideki boşlukları okeyle doldurma testi (Örn: 5-?-7)
+                   if (len === 2 && list[i+1].number - list[i].number === 2) {
+                       variations.push([list[i], okeys[0], list[i+1]]);
+                   }
+                   
+                   variations.forEach(t => {
+                       let pts = getRunPoints(t);
+                       if (pts > 0) candidates.push({ tiles: t, points: pts, type: 'run' });
+                   });
+               }
+           }
         }
     });
 
