@@ -2530,8 +2530,12 @@ function findGroups(hand) {
     });
 
     // 3. EN YÜKSEK PUANI VERENLERİ SEÇ (CONFLICT RESOLUTION)
-    // Puanlara göre büyükten küçüğe diz
-    candidates.sort((a, b) => b.points - a.points);
+    // Önce okey kullanmayan gruplar, sonra okey kullananlar (Okeyi en çok gerekeni için sakla)
+    candidates.sort((a, b) => {
+        const aIsWild = a.tiles.some(t => isWildCard(t)) ? -200 : 0;
+        const bIsWild = b.tiles.some(t => isWildCard(t)) ? -200 : 0;
+        return (b.points + bIsWild) - (a.points + aIsWild);
+    });
 
     const usedIds = new Set();
     let usedOkeyCount = 0;
