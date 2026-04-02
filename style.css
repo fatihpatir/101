@@ -2312,5 +2312,18 @@ input, textarea {
     user-select: text !important;
 }
 
+/* Seçili Taş Vurgusu (Tap-to-Select) */
+.tile.selected {
+    transform: translateY(-6px) scale(1.05);
+    box-shadow: 0 0 0 2px #ffd700, 0 6px 16px rgba(0,0,0,0.5);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    z-index: 10;
+    position: relative;
+}
+.slot-selected {
+    background: rgba(255, 215, 0, 0.08);
+    border-radius: 4px;
+}
+
 
 

@@ -33,7 +33,9 @@ let gameState = {
     touch: {
         phantom: null,
         sourceType: null,
-        draggedTileId: null
+        draggedTileId: null,
+        draggedTile: null,
+        originalIdx: -1
     },
     settings: {
         sound: true
@@ -1068,7 +1070,13 @@ function renderUserRack() {
             const isRealOkey = (tile.number === gameState.okeyTile?.number && tile.color === gameState.okeyTile?.color && !tile.isJoker);
             if (!isRealOkey) tile.isFlipped = false;
 
-            slot.appendChild(tile.createHTMLElement());
+            const tileEl = tile.createHTMLElement();
+            // Seçili taşı vurgula
+            if (gameState.selectedTileIds?.has(tile.id)) {
+                tileEl.classList.add('selected');
+                slot.classList.add('slot-selected');
+            }
+            slot.appendChild(tileEl);
         }
 
         if (i < 20) row1.appendChild(slot);
@@ -2093,18 +2101,19 @@ function toggleTileSelection(tileId) {
 
     const isAlreadySelected = gameState.selectedTileIds.has(tileId);
     
-    // KURAL: Tekli seçim (Daha temiz bir mobil deneyimi için)
-    // Eğer farklı bir taşa basıldıysa öncekini indir
-    if (!isAlreadySelected) {
+    if (isAlreadySelected) {
+        // İkinci dokunuş: Sıra bizde ve taş çekildiyse → DİREKT AT
+        if (gameState.turnOrder[gameState.currentTurnIndex] === 'user' && gameState.hasDrawn) {
+            gameState.selectedTileIds.delete(tileId);
+            processUserDiscard(tileId);
+            return;
+        }
+        // Değilse sadece seçimden çıkar
+        gameState.selectedTileIds.delete(tileId);
+    } else {
+        // İlk dokunuş → SEÇ
         gameState.selectedTileIds.clear();
         gameState.selectedTileIds.add(tileId);
-        
-        // Okey ise ve zaten düzse (flip=false), seçilince dönsün mü? 
-        // Kullanıcı "tıklayıp döndürüyorum" dediği için seçilme ile döndürmeyi ayırabiliriz 
-        // veya her tıklamada okeyse döndürebiliriz.
-    } else {
-        // Zaten seçiliyse seçimden çıkar (aşağı iner)
-        gameState.selectedTileIds.delete(tileId);
     }
 
     // Okey Döndürme (Sadece gerçek okey ise)
@@ -2194,18 +2203,71 @@ function handleDropOnSlot(e) {
 function handleTouchStartSlot(e) {
     const idx = parseInt(this.dataset.index);
     const tile = gameState.userRackSlots[idx];
-    if (tile) {
+    if (!tile) return;
+
+    const touch = e.touches[0];
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    const startTime = Date.now();
+
+    // Sürükleme modu için geçici state
+    const slotEl = this;
+
+    // Kısa süre bekleyelim — hareket olursa sürükleme, olmadıysa tap
+    const tapTimeout = setTimeout(() => {
+        // 200ms geçti ve hareket yoksa: SÜRÜKLEME başlat
         gameState.touch.draggedTileId = tile.id;
         gameState.touch.draggedTile = tile;
         gameState.touch.originalIdx = idx;
-        
-        // Istakadan görsel olarak "kaldır" (Slotu boşalt)
         gameState.userRackSlots[idx] = null;
         renderUserRack();
-
         document.body.classList.add('dragging-mode');
-        createPhantom(this);
-    }
+        createPhantom(slotEl);
+        slotEl._tapTimeout = null;
+    }, 200);
+
+    slotEl._tapTimeout = tapTimeout;
+    slotEl._tapStartX = startX;
+    slotEl._tapStartY = startY;
+
+    // touchmove: eğer 8px'den fazla hareket varsa timeout'u erken tetikle (drag başlasın)
+    const onMove = (ev) => {
+        const t = ev.touches[0];
+        const dx = Math.abs(t.clientX - startX);
+        const dy = Math.abs(t.clientY - startY);
+        if (dx > 8 || dy > 8) {
+            if (slotEl._tapTimeout) {
+                clearTimeout(slotEl._tapTimeout);
+                slotEl._tapTimeout = null;
+                // Erken drag başlat
+                gameState.touch.draggedTileId = tile.id;
+                gameState.touch.draggedTile = tile;
+                gameState.touch.originalIdx = idx;
+                gameState.userRackSlots[idx] = null;
+                renderUserRack();
+                document.body.classList.add('dragging-mode');
+                createPhantom(slotEl);
+            }
+            slotEl.removeEventListener('touchmove', onMove);
+            slotEl.removeEventListener('touchend', onEnd);
+        }
+    };
+
+    // touchend: eğer timeout henüz iptal olmadıysa → TAP
+    const onEnd = (ev) => {
+        slotEl.removeEventListener('touchmove', onMove);
+        slotEl.removeEventListener('touchend', onEnd);
+        if (slotEl._tapTimeout) {
+            clearTimeout(slotEl._tapTimeout);
+            slotEl._tapTimeout = null;
+            // TAP: seç / seçimden çıkar
+            toggleTileSelection(tile.id);
+        }
+        // Drag modundaysa handleTouchEnd zaten devrede, müdahale etme
+    };
+
+    slotEl.addEventListener('touchmove', onMove, { passive: true });
+    slotEl.addEventListener('touchend', onEnd, { once: true });
 }
 
 function handleTouchEnd(e) {
@@ -2288,22 +2350,33 @@ function handleTouchEnd(e) {
                 }
             }
 
+            // Istaka dışına atma: taşın bırakıldığı yeri tanımla
+            const rackWrapper = document.querySelector('.rack-wrapper');
+            const rackRect = rackWrapper?.getBoundingClientRect();
+            const isOutsideRack = rackRect ? (
+                touch.clientY < rackRect.top - 20 || // Yukarı fırlattı
+                touch.clientX < rackRect.left - 40 || // Sola fırlattı
+                touch.clientX > rackRect.right + 40    // Sağa fırlattı
+            ) : false;
+
+            // Discard zone kontrolü (genişletilmiş - tüm sağ kenar)
             const discardRect = document.getElementById('discard-user')?.getBoundingClientRect();
             let isInDiscard = !!targetEl?.closest('#discard-user');
             if (!isInDiscard && discardRect) {
-                 const m = 60;
-                 if (touch.clientX >= discardRect.left-m && touch.clientX <= discardRect.right+m &&
-                     touch.clientY >= discardRect.top-m && touch.clientY <= discardRect.bottom+m) {
-                     isInDiscard = true;
-                 }
+                const m = 80; // Tolerans artırıldı
+                if (touch.clientX >= discardRect.left - m && touch.clientX <= discardRect.right + m &&
+                    touch.clientY >= discardRect.top - m && touch.clientY <= discardRect.bottom + m) {
+                    isInDiscard = true;
+                }
             }
 
             if (targetIdx !== -1) {
-                // Önce taşı geri koy (moveTileToSlot findIndex ile çalıştığı için)
+                // Slot üstüne bırakıldı → taşı o slota taşı
                 gameState.userRackSlots[originalIdx] = originalTile;
                 moveTileToSlot(dId, targetIdx);
-            } else if (isInDiscard) {
-                gameState.userRackSlots[originalIdx] = originalTile; // Geri koy ki oradan silinsin
+            } else if (isInDiscard || (isOutsideRack && gameState.hasDrawn)) {
+                // Discard zonuna veya ıstaka dışına bırakıldı (taş çekildiyse) → at
+                gameState.userRackSlots[originalIdx] = originalTile;
                 processUserDiscard(dId);
             } else if (targetEl?.closest('.table-group') || targetEl?.closest('.process-slot') || targetEl?.closest('#series-field') || targetEl?.closest('#pairs-field')) {
                 gameState.userRackSlots[originalIdx] = originalTile;
@@ -2314,7 +2387,7 @@ function handleTouchEnd(e) {
                     attemptOpenCluster(dId);
                 }
             } else {
-                // Hiçbir yere atılamadı, eski yerine iade et
+                // Geçersiz yer → iade et
                 gameState.userRackSlots[originalIdx] = originalTile;
                 renderUserRack();
             }
