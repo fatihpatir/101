@@ -2208,67 +2208,58 @@ function handleTouchStartSlot(e) {
     const touch = e.touches[0];
     const startX = touch.clientX;
     const startY = touch.clientY;
-    const startTime = Date.now();
 
-    // Sürükleme modu için geçici state
     const slotEl = this;
 
-    // Kısa süre bekleyelim — hareket olursa sürükleme, olmadıysa tap
-    const tapTimeout = setTimeout(() => {
-        // 200ms geçti ve hareket yoksa: SÜRÜKLEME başlat
+    const startDrag = () => {
+        // ★ Phantom ÖNCE oluşturulur (slot hâlâ DOM'da, rect doğru)
+        createPhantom(slotEl);
+        // SONRA slot null'lanır ve rack yeniden çizilir
         gameState.touch.draggedTileId = tile.id;
         gameState.touch.draggedTile = tile;
         gameState.touch.originalIdx = idx;
         gameState.userRackSlots[idx] = null;
         renderUserRack();
         document.body.classList.add('dragging-mode');
-        createPhantom(slotEl);
+    };
+
+    const tapTimeout = setTimeout(() => {
         slotEl._tapTimeout = null;
-    }, 200);
+        startDrag();
+    }, 180);
 
     slotEl._tapTimeout = tapTimeout;
-    slotEl._tapStartX = startX;
-    slotEl._tapStartY = startY;
 
-    // touchmove: eğer 8px'den fazla hareket varsa timeout'u erken tetikle (drag başlasın)
     const onMove = (ev) => {
         const t = ev.touches[0];
         const dx = Math.abs(t.clientX - startX);
         const dy = Math.abs(t.clientY - startY);
         if (dx > 8 || dy > 8) {
+            slotEl.removeEventListener('touchmove', onMove);
+            slotEl.removeEventListener('touchend', onEnd);
             if (slotEl._tapTimeout) {
                 clearTimeout(slotEl._tapTimeout);
                 slotEl._tapTimeout = null;
-                // Erken drag başlat
-                gameState.touch.draggedTileId = tile.id;
-                gameState.touch.draggedTile = tile;
-                gameState.touch.originalIdx = idx;
-                gameState.userRackSlots[idx] = null;
-                renderUserRack();
-                document.body.classList.add('dragging-mode');
-                createPhantom(slotEl);
+                startDrag();
             }
-            slotEl.removeEventListener('touchmove', onMove);
-            slotEl.removeEventListener('touchend', onEnd);
         }
     };
 
-    // touchend: eğer timeout henüz iptal olmadıysa → TAP
     const onEnd = (ev) => {
         slotEl.removeEventListener('touchmove', onMove);
         slotEl.removeEventListener('touchend', onEnd);
         if (slotEl._tapTimeout) {
             clearTimeout(slotEl._tapTimeout);
             slotEl._tapTimeout = null;
-            // TAP: seç / seçimden çıkar
+            // TAP: seç / çift dokununca at
             toggleTileSelection(tile.id);
         }
-        // Drag modundaysa handleTouchEnd zaten devrede, müdahale etme
     };
 
     slotEl.addEventListener('touchmove', onMove, { passive: true });
     slotEl.addEventListener('touchend', onEnd, { once: true });
 }
+
 
 function handleTouchEnd(e) {
     document.body.classList.remove('dragging-mode');
@@ -2395,9 +2386,16 @@ function handleTouchEnd(e) {
                     attemptOpenCluster(dId);
                 }
             } else {
-                // Geçersiz yer → iade et
-                gameState.userRackSlots[originalIdx] = originalTile;
-                renderUserRack();
+                // Geçersiz yere bırakıldı
+                if (gameState.hasDrawn) {
+                    // Taş çekilmişti → Direkt at (en doğal mobil davranışı)
+                    gameState.userRackSlots[originalIdx] = originalTile;
+                    processUserDiscard(dId);
+                } else {
+                    // Taş çekilmemişti → Geri iade et
+                    gameState.userRackSlots[originalIdx] = originalTile;
+                    renderUserRack();
+                }
             }
 
             gameState.touch.draggedTileId = null;
