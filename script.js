@@ -2317,45 +2317,34 @@ function handleTouchEnd(e) {
             const originalTile = gameState.touch.draggedTile;
             const originalIdx = gameState.touch.originalIdx;
 
-            // ★ 1. ÖNCELİK: DISCARD ZONE KONTROLÜ (Slot'tan önce yapılmalı!)
-            const discardRect = document.getElementById('discard-user')?.getBoundingClientRect();
-            let isInDiscard = !!targetEl?.closest('#discard-user');
-            if (!isInDiscard && discardRect) {
-                const m = 80;
-                if (touch.clientX >= discardRect.left - m && touch.clientX <= discardRect.right + m &&
-                    touch.clientY >= discardRect.top - m && touch.clientY <= discardRect.bottom + m) {
-                    isInDiscard = true;
-                }
-            }
+            // ★ 1. ÖNCELİK: MASA ALANI KONTROLÜ (Masaya sürükleme ÖNCE kontrol edilmeli!)
+            const isOnTableArea = !!(targetEl?.closest('.table-group') || targetEl?.closest('.process-slot') || targetEl?.closest('#series-field') || targetEl?.closest('#pairs-field'));
 
-            // ★ 2. ISTAKA DIŞINA FIRLATMA (Yukarı / Yana)
-            const rackWrapper = document.querySelector('.rack-wrapper');
-            const rackRect = rackWrapper?.getBoundingClientRect();
-            const isOutsideRack = rackRect ? (
-                touch.clientY < rackRect.top - 20 ||
-                touch.clientX < rackRect.left - 40 ||
-                touch.clientX > rackRect.right + 40
-            ) : false;
-
-            // Discard zone veya fırlatma → HEMEN AT (Slot aramadan)
-            if (isInDiscard || (isOutsideRack && gameState.hasDrawn)) {
+            if (isOnTableArea) {
                 gameState.userRackSlots[originalIdx] = originalTile;
-                processUserDiscard(dId);
+                const gEl = targetEl.closest('.table-group');
+                if (gEl) {
+                    handleProcessTile(dId, parseInt(gEl.dataset.index), gEl.dataset.owner);
+                } else if (targetEl?.closest('.process-slot')) {
+                    const procEl = targetEl.closest('.process-slot');
+                    const parentGroup = procEl?.closest('.table-group');
+                    if (parentGroup) handleProcessTile(dId, parseInt(parentGroup.dataset.index), parentGroup.dataset.owner);
+                } else {
+                    attemptOpenCluster(dId);
+                }
                 gameState.touch.draggedTileId = null;
                 gameState.touch.draggedTile = null;
                 gameState.touch.originalIdx = -1;
                 return;
             }
 
-            // ★ 3. SLOT KONTROLÜ (Discard değilse slot'a bak)
+            // ★ 2. SLOT KONTROLÜ (Masa değilse ıstakadaki slota bak)
             let targetIdx = -1;
             const slot = targetEl?.closest('.tile-slot');
-            
+
             if (slot) {
                 targetIdx = parseInt(slot.dataset.index);
             } else {
-                // Rack üzerinde ama tam slot üstünde değilse → En yakın slotu bul
-                // Discard zone içindeyse slot aramayı atla
                 const isOnRackWrapper = targetEl?.closest('.rack-wrapper');
                 if (isOnRackWrapper) {
                     const slots = document.querySelectorAll('.tile-slot');
@@ -2377,25 +2366,39 @@ function handleTouchEnd(e) {
                 // Slot üstüne bırakıldı → taşı o slota taşı
                 gameState.userRackSlots[originalIdx] = originalTile;
                 moveTileToSlot(dId, targetIdx);
-            } else if (targetEl?.closest('.table-group') || targetEl?.closest('.process-slot') || targetEl?.closest('#series-field') || targetEl?.closest('#pairs-field')) {
+                gameState.touch.draggedTileId = null;
+                gameState.touch.draggedTile = null;
+                gameState.touch.originalIdx = -1;
+                return;
+            }
+
+            // ★ 3. DISCARD ZONE KONTROLÜ (Küçük margin ile — 30px)
+            const discardRect = document.getElementById('discard-user')?.getBoundingClientRect();
+            let isInDiscard = !!targetEl?.closest('#discard-user');
+            if (!isInDiscard && discardRect) {
+                const m = 30;
+                if (touch.clientX >= discardRect.left - m && touch.clientX <= discardRect.right + m &&
+                    touch.clientY >= discardRect.top - m && touch.clientY <= discardRect.bottom + m) {
+                    isInDiscard = true;
+                }
+            }
+
+            // ★ 4. ISTAKA DIŞINA FIRLATMA (Yukarı — masa değil, ıstaka dışı)
+            const rackWrapper = document.querySelector('.rack-wrapper');
+            const rackRect = rackWrapper?.getBoundingClientRect();
+            const isOutsideRack = rackRect ? (
+                touch.clientY < rackRect.top - 20 ||
+                touch.clientX < rackRect.left - 40 ||
+                touch.clientX > rackRect.right + 40
+            ) : false;
+
+            if (isInDiscard || (isOutsideRack && gameState.hasDrawn)) {
                 gameState.userRackSlots[originalIdx] = originalTile;
-                if (targetEl?.closest('.table-group') || targetEl?.closest('.process-slot')) {
-                    let gEl = targetEl.closest('.table-group');
-                    if (gEl) handleProcessTile(dId, parseInt(gEl.dataset.index), gEl.dataset.owner);
-                } else {
-                    attemptOpenCluster(dId);
-                }
+                processUserDiscard(dId);
             } else {
-                // Geçersiz yere bırakıldı
-                if (gameState.hasDrawn) {
-                    // Taş çekilmişti → Direkt at (en doğal mobil davranışı)
-                    gameState.userRackSlots[originalIdx] = originalTile;
-                    processUserDiscard(dId);
-                } else {
-                    // Taş çekilmemişti → Geri iade et
-                    gameState.userRackSlots[originalIdx] = originalTile;
-                    renderUserRack();
-                }
+                // Geçersiz yere bırakıldı → Geri iade et (ASLA otomatik atma)
+                gameState.userRackSlots[originalIdx] = originalTile;
+                renderUserRack();
             }
 
             gameState.touch.draggedTileId = null;
