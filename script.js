@@ -661,7 +661,22 @@ function openPairs() {
 
 function getOkeySubstitutes(group) {
     const subs = {};
-    if (!group || group.length < 3) return subs;
+    if (!group || group.length < 2) return subs;
+
+    // Check if it's a PAIR (Çift)
+    if (group.length === 2) {
+        const okeyInGroup = group.filter(t => isWildCard(t));
+        const realTilesInGroup = group.filter(t => !isWildCard(t));
+        
+        if (okeyInGroup.length === 1 && realTilesInGroup.length === 1) {
+            const num = realTilesInGroup[0].number;
+            const color = realTilesInGroup[0].color;
+            subs[okeyInGroup[0].id] = { number: num, color: color, multipleColors: false };
+        }
+        return subs;
+    }
+
+    if (group.length < 3) return subs;
 
     // Check if it's a RUN (Seri)
     const runPoints = getRunPoints(group);
@@ -1181,6 +1196,19 @@ function processUserDiscard(tileId) {
     owners.forEach(owner => {
         (gameState.table[owner] || []).forEach(group => {
             if (isValidAddition(tile, group)) isIshlek = true;
+            
+            const okeyIdx = group.findIndex(t => isWildCard(t));
+            if (okeyIdx !== -1) {
+                const subs = getOkeySubstitutes(group);
+                if (subs[group[okeyIdx].id]) {
+                    const req = subs[group[okeyIdx].id];
+                    const matchesNumber = tile.number === req.number;
+                    const matchesColor = req.multipleColors 
+                        ? !group.some(t => t.color === tile.color && !isWildCard(t))
+                        : tile.color === req.color;
+                    if (matchesNumber && matchesColor) isIshlek = true;
+                }
+            }
         });
     });
 
@@ -1370,7 +1398,22 @@ async function botPlay() {
                  let isIshlek = false;
                  const owners = ['user', 'bot1', 'bot2', 'bot3'];
                  owners.forEach(ow => {
-                     (gameState.table[ow] || []).forEach(g => { if (isValidAddition(t, g)) isIshlek = true; });
+                     (gameState.table[ow] || []).forEach(g => { 
+                         if (isValidAddition(t, g)) isIshlek = true;
+                         
+                         const okeyIdx = g.findIndex(x => isWildCard(x));
+                         if (okeyIdx !== -1) {
+                             const subs = getOkeySubstitutes(g);
+                             if (subs[g[okeyIdx].id]) {
+                                 const req = subs[g[okeyIdx].id];
+                                 const matchesNumber = t.number === req.number;
+                                 const matchesColor = req.multipleColors 
+                                     ? !g.some(x => x.color === t.color && !isWildCard(x))
+                                     : t.color === req.color;
+                                 if (matchesNumber && matchesColor) isIshlek = true;
+                             }
+                         }
+                     });
                  });
                  return !isIshlek;
              });
@@ -1488,7 +1531,7 @@ async function botProcessTiles(botId) {
                                 
                                 // CEZA: Sadece başkasından çalınca ceza yüklensin
                                 if (owner !== botId) {
-                                    gameState.players[owner].score += 101;
+                                    gameState.roundPenalties[owner] += 101;
                                     logDebug(`${bot.name}, ${gameState.players[owner].name}'den Okey çaldı!`);
                                     showGameMessage(`${bot.name} Okey Çaldı! 🔥`);
                                 } else {
@@ -1596,7 +1639,7 @@ function autoProcessUserTiles() {
                                 player.hand.push(targetOkey);
 
                                 if (owner !== 'user') {
-                                    gameState.players[owner].score += 101;
+                                    gameState.roundPenalties[owner] += 101;
                                     showGameMessage(`OKEY ÇALDIN! ${gameState.players[owner].name}'e +101 Ceza! 🔥`);
                                 } else {
                                     showGameMessage("Kendi Okey'ini geri aldın! 🔥");
@@ -1706,8 +1749,12 @@ function attemptAutoProcessTile(tileId) {
         targetOkey.isFlipped = false;
         gameState.players.user.hand = gameState.players.user.hand.filter(t => t.id !== tile.id);
         gameState.players.user.hand.push(targetOkey);
-        if (owner !== 'user') gameState.players[owner].score += 101;
-        showGameMessage("Okey başarıyla çalındı! 🔥");
+        if (owner !== 'user') {
+            gameState.roundPenalties[owner] += 101;
+            showGameMessage(`Okey başarıyla çalındı! ${gameState.players[owner].name}'e +101 Ceza! 🔥`);
+        } else {
+            showGameMessage("Kendi Okey'inizi geri aldınız! 🔥");
+        }
         renderAll();
         return true;
     }
@@ -1841,8 +1888,7 @@ function handleProcessTile(tileId, groupIdx, owner) {
                 
                 // CEZA: Sadece BAŞKASINDAN çalınca ceza ver
                 if (owner !== 'user') {
-                    gameState.players[owner].score += 101;
-                    gameState.roundScores[owner][gameState.roundScores[owner].length - 1] += 101;
+                    gameState.roundPenalties[owner] += 101;
                     showGameMessage(`OKEY ÇALINDI! ${gameState.players[owner].name}'e +101 Ceza! 🔥`);
                 } else {
                     showGameMessage("Kendi okeyinizi geri aldınız! 🔥");
@@ -1999,9 +2045,9 @@ function attemptStealDiscard(targetSlotIdx = -1) {
     const isTileUsedInComplete = hypotheticalGroups.complete.some(group => 
         group.some(t => t.id === tile.id)
     );
-    const isTileUsedInPair = hypotheticalGroups.pairs.some(p => 
-        p.some(t => t.id === tile.id)
-    );
+    const currentPairsCount = countPossiblePairs(gameState.players.user.hand);
+    const hypotheticalPairsCount = countPossiblePairs(hypotheticalHand);
+    const isTileUsedInPair = hypotheticalPairsCount > currentPairsCount;
 
     // ZİNCİRLEME İŞLEK KONTROLÜ (Kullanıcının örneği: 3-4-5 masada, elimde 6 var, yandan 7 alıp ikisini birden işleyebilir miyim?)
     let canAttachWithHand = false;
