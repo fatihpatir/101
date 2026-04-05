@@ -723,9 +723,9 @@ function isValidAddition(tile, group) {
         
         if (tile.number !== realTiles[0]?.number && !isWildCard(tile)) return false;
         
-        // Eğer okey varsa, toplam kapasite 4'tür (3 gerçek + 1 okey varken 4. gerçeği ekleyip okeyi çalabiliriz)
-        // Eğer okey yoksa, kapasite zaten 4'tür.
-        if (group.length >= 4 && !hasOkey) return false; 
+        // KURAL: 101 Okey'de setler asla 4 taşı (farklı renkler) geçemez.
+        // Okey çalınma durumu zaten stealAction ile ele alınır, isValidAddition sadece ekleme yapar.
+        if (group.length >= 4) return false; 
         
         // Renk zaten var mı?
         const hasColor = group.some(t => t.color === tile.color && !isWildCard(t));
@@ -1556,6 +1556,7 @@ async function botProcessTiles(botId) {
                     const group = tableGroups[gIdx];
                     for (let i = 0; i < leftovers.length; i++) {
                         const tile = leftovers[i];
+                        if (isWildCard(tile)) continue; // KURAL: Bot Okey taşını masaya rastgele işleyip harcamaz!
                         if (isValidAddition(tile, group)) {
                             // Animasyon: Bot'un isminden Masadaki Per'e
                             const botHtmlId = botId.includes('bot') ? botId.replace('bot', 'bot-') : botId;
